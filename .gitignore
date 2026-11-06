@@ -1,0 +1,5 @@
+/config.json
+/data/
+/output/
+/silo-newsletter
+*.local.json

@@ -1,0 +1,24 @@
+{
+  "SiloUrl": "http://192.168.1.10:8080",
+  "SiloApiKey": "WKLEJ_KLUCZ_ADMINA_BEZ_OGRANICZEN",
+
+  "ServerName": "Silo",
+  "FromName": "Silo Newsletter",
+  "FromEmail": "newsletter@example.com",
+  "ReplyToEmail": "",
+  "TestEmail": "ty@example.com",
+
+  "SmtpHost": "smtp.gmail.com",
+  "SmtpPort": 587,
+  "SmtpSecurity": "starttls",
+  "SmtpUsername": "newsletter@example.com",
+  "SmtpPassword": "HASLO_APLIKACJI",
+
+  "TimeZone": "Europe/Warsaw",
+  "DaysBack": 7,
+  "MaxMovies": 8,
+  "MaxShows": 8,
+  "IncludeChildProfiles": false,
+  "ExcludedUserIds": [],
+  "IncludedLibraryIds": []
+}
