@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Silo Newsletter</title>
+<link rel="stylesheet" href="/style.css">
+<script src="/app.js" defer></script>
+</head>
+<body>
+<div id="toast" role="status" aria-live="polite" hidden></div>
+
+<main id="auth" class="auth" hidden>
+  <section class="card auth-card">
+    <h1>Silo Newsletter</h1>
+    <form id="setup-form" hidden>
+      <p>Pierwsze uruchomienie. Ustaw hasło do panelu. Kod konfiguracji znajdziesz w logach kontenera
+      (Unraid: ikona kontenera → <strong>Logs</strong>).</p>
+      <label>Kod z logów<input id="setup-code" autocomplete="one-time-code" required></label>
+      <label>Nowe hasło (min. 8 znaków)<input id="setup-password" type="password" autocomplete="new-password" minlength="8" required></label>
+      <button class="primary" type="submit">Ustaw hasło</button>
+    </form>
+    <form id="login-form" hidden>
+      <label>Hasło<input id="login-password" type="password" autocomplete="current-password" required></label>
+      <button class="primary" type="submit">Zaloguj</button>
+    </form>
+  </section>
+</main>
+
+<div id="app" hidden>
+  <header class="topbar">
+    <div class="brand">Silo Newsletter</div>
+    <nav id="tabs" role="tablist">
+      <button data-tab="dashboard" class="active">Pulpit</button>
+      <button data-tab="connection">Połączenie</button>
+      <button data-tab="email">E-mail</button>
+      <button data-tab="content">Treść</button>
+      <button data-tab="recipients">Odbiorcy</button>
+      <button data-tab="schedule">Harmonogram</button>
+      <button data-tab="preview">Podgląd</button>
+      <button data-tab="history">Historia</button>
+    </nav>
+    <button id="logout" class="ghost">Wyloguj</button>
+  </header>
+
+  <main class="content">
+    <section data-panel="dashboard">
+      <h2>Pulpit</h2>
+      <div class="grid">
+        <div class="card"><h3>Konfiguracja</h3><p id="dash-config">…</p></div>
+        <div class="card"><h3>Następna wysyłka</h3><p id="dash-next">…</p></div>
+        <div class="card"><h3>Ostatnia wysyłka</h3><p id="dash-last">…</p></div>
+      </div>
+      <div class="card">
+        <h3>Wyślij teraz do wszystkich</h3>
+        <p>Wysyła newsletter do wszystkich aktywnych kont z adresem e-mail, z pominięciem wykluczonych.</p>
+        <label>Wpisz <strong>WYŚLIJ</strong>, aby potwierdzić<input id="send-all-confirm" autocomplete="off"></label>
+        <button id="send-all" class="danger">Wyślij do wszystkich</button>
+      </div>
+    </section>
+
+    <section data-panel="connection" hidden>
+      <h2>Połączenie z Silo</h2>
+      <form class="card settings" data-form>
+        <label>Adres serwera Silo<input name="SiloUrl" placeholder="http://192.168.1.10:8080" required>
+          <small>Adres, pod którym kontener widzi Silo, np. adres IP Unraida i port API.</small></label>
+        <label>Klucz API Silo<input name="SiloApiKey" type="password" autocomplete="off" data-secret="HasSiloApiKey">
+          <small>Klucz administratora <strong>bez ograniczeń uprawnień</strong>. Zostaw puste, aby zachować zapisany klucz.</small></label>
+        <div class="actions"><button class="primary" type="submit">Zapisz</button><button type="button" id="test-silo">Testuj połączenie</button></div>
+        <p class="result" id="test-silo-result"></p>
+      </form>
+    </section>
+
+    <section data-panel="email" hidden>
+      <h2>Wysyłka e-mail</h2>
+      <form class="card settings" data-form>
+        <div class="row">
+          <label>Serwer SMTP<input name="SmtpHost" placeholder="smtp.gmail.com"></label>
+          <label class="narrow">Port<input name="SmtpPort" type="number" min="1" max="65535"></label>
+          <label class="narrow">Szyfrowanie<select name="SmtpSecurity"><option value="starttls">STARTTLS (587)</option><option value="tls">TLS (465)</option><option value="none">Brak</option></select></label>
+        </div>
+        <div class="row">
+          <label>Użytkownik SMTP<input name="SmtpUsername" autocomplete="off"></label>
+          <label>Hasło SMTP<input name="SmtpPassword" type="password" autocomplete="off" data-secret="HasSmtpPassword"><small>Gmail: hasło aplikacji. Puste = bez zmian.</small></label>
+        </div>
+        <div class="row">
+          <label>Nazwa nadawcy<input name="FromName"></label>
+          <label>Adres nadawcy<input name="FromEmail" type="email"></label>
+          <label>Odpowiedzi na adres (opcjonalnie)<input name="ReplyToEmail" type="email"></label>
+        </div>
+        <label>Adres testowy<input name="TestEmail" type="email"><small>Tu trafiają wiadomości z przycisku „Wyślij test”.</small></label>
+        <div class="actions"><button class="primary" type="submit">Zapisz</button></div>
+        <p class="result" data-mail-problem></p>
+      </form>
+    </section>
+
+    <section data-panel="content" hidden>
+      <h2>Treść newslettera</h2>
+      <form class="card settings" data-form>
+        <div class="row">
+          <label>Nazwa serwera<input name="ServerName"><small>Pojawia się w temacie i nagłówku.</small></label>
+          <label>Adres przycisku „Otwórz”<input name="ButtonUrl" placeholder="puste = adres Silo"></label>
+        </div>
+        <div class="row">
+          <label class="narrow">Liczba dni<input name="DaysBack" type="number" min="1" max="60"></label>
+          <label class="narrow">Maks. filmów<input name="MaxMovies" type="number" min="0" max="50"></label>
+          <label class="narrow">Maks. seriali<input name="MaxShows" type="number" min="0" max="50"></label>
+        </div>
+        <label class="check"><input name="IncludeChildProfiles" type="checkbox"> Licz do statystyk także profile dziecięce</label>
+        <fieldset><legend>Biblioteki w newsletterze</legend>
+          <div id="libraries" class="checklist"><small>Zapisz połączenie z Silo, aby wczytać biblioteki.</small></div>
+          <small>Nic nie zaznaczone = wszystkie biblioteki.</small>
+        </fieldset>
+        <div class="actions"><button class="primary" type="submit">Zapisz</button></div>
+      </form>
+    </section>
+
+    <section data-panel="recipients" hidden>
+      <h2>Odbiorcy</h2>
+      <form class="card settings" data-form>
+        <p>Konta pobrane z Silo. Odznacz, kto ma nie dostawać newslettera. Kontom bez e-maila w Silo możesz podać adres zastępczy.</p>
+        <table class="users"><thead><tr><th>Wysyłać</th><th>Konto</th><th>E-mail w Silo</th><th>Adres zastępczy</th><th>Status</th></tr></thead>
+        <tbody id="users"><tr><td colspan="5">Wczytywanie…</td></tr></tbody></table>
+        <div class="actions"><button class="primary" type="submit">Zapisz</button></div>
+      </form>
+    </section>
+
+    <section data-panel="schedule" hidden>
+      <h2>Harmonogram</h2>
+      <form class="card settings" data-form>
+        <label class="check"><input name="ScheduleEnabled" type="checkbox"> Wysyłaj automatycznie co tydzień</label>
+        <div class="row">
+          <label class="narrow">Dzień<select name="ScheduleDay">
+            <option value="Monday">poniedziałek</option><option value="Tuesday">wtorek</option><option value="Wednesday">środa</option>
+            <option value="Thursday">czwartek</option><option value="Friday">piątek</option><option value="Saturday">sobota</option><option value="Sunday">niedziela</option>
+          </select></label>
+          <label class="narrow">Godzina<input name="ScheduleTime" type="time"></label>
+          <label>Strefa czasowa<input name="TimeZone" placeholder="Europe/Warsaw"></label>
+          <label class="narrow">Przerwa między e-mailami (s)<input name="SendDelaySeconds" type="number" min="0" max="600"></label>
+        </div>
+        <small>Pierwsza automatyczna wysyłka nastąpi w najbliższym terminie po zapisaniu. Jeśli kontener był wyłączony, zaległa wysyłka ruszy do 6 godzin po terminie.</small>
+        <div class="actions"><button class="primary" type="submit">Zapisz</button></div>
+      </form>
+    </section>
+
+    <section data-panel="preview" hidden>
+      <h2>Podgląd i test</h2>
+      <div class="card">
+        <div class="row">
+          <label>Konto<select id="preview-user"></select></label>
+          <div class="actions inline"><button class="primary" id="preview-run">Pokaż podgląd</button><button id="send-test">Wyślij test na adres testowy</button></div>
+        </div>
+        <p class="result" id="preview-result"></p>
+      </div>
+      <iframe id="preview-frame" title="Podgląd newslettera" sandbox></iframe>
+    </section>
+
+    <section data-panel="history" hidden>
+      <h2>Historia wysyłek</h2>
+      <div class="card"><table class="history"><thead><tr><th>Start</th><th>Rodzaj</th><th>Wysłane</th><th>Błędy</th><th>Pominięte</th><th>Status</th></tr></thead><tbody id="history"></tbody></table></div>
+      <div class="card">
+        <h3>Zmiana hasła panelu</h3>
+        <form id="password-form" class="settings">
+          <div class="row"><label>Obecne hasło<input id="pw-current" type="password" autocomplete="current-password" required></label>
+          <label>Nowe hasło<input id="pw-new" type="password" autocomplete="new-password" minlength="8" required></label></div>
+          <div class="actions"><button type="submit">Zmień hasło</button></div>
+        </form>
+      </div>
+    </section>
+  </main>
+  <footer class="footer" id="version"></footer>
+</div>
+</body>
+</html>

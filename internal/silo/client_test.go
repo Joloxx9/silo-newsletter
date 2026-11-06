@@ -50,7 +50,7 @@ func TestCheckUsesOnlyGETAndPagesEverything(t *testing.T) {
 func TestRejectedKeyIsReportedWithoutSecrets(t *testing.T) {
 	fake, client, _ := newClient(t, "sa_wrong")
 	_, _, err := client.Check(context.Background())
-	if err == nil || !strings.Contains(err.Error(), "rejected the API key") {
+	if err == nil || !strings.Contains(err.Error(), "odrzuciło klucz API") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if strings.Contains(err.Error(), "sa_wrong") || strings.Contains(err.Error(), fake.URL()) {

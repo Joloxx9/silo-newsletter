@@ -333,7 +333,7 @@ func (b *Builder) childProfiles(ctx context.Context, accountID string) map[strin
 func (b *Builder) Build(ctx context.Context, account silo.Account) Newsletter {
 	n := Newsletter{
 		ServerName:    b.cfg.ServerName,
-		ButtonURL:     b.cfg.ButtonURL,
+		ButtonURL:     b.cfg.Button(),
 		RecipientID:   account.ID,
 		RecipientName: account.Username,
 		From:          b.from,

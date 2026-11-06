@@ -4,10 +4,10 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -16,10 +16,13 @@ import (
 	_ "time/tzdata"
 
 	"github.com/joloxx9/silo-newsletter/internal/config"
-	"github.com/joloxx9/silo-newsletter/internal/mail"
+	"github.com/joloxx9/silo-newsletter/internal/delivery"
 	"github.com/joloxx9/silo-newsletter/internal/newsletter"
 	"github.com/joloxx9/silo-newsletter/internal/render"
+	"github.com/joloxx9/silo-newsletter/internal/schedule"
 	"github.com/joloxx9/silo-newsletter/internal/silo"
+	"github.com/joloxx9/silo-newsletter/internal/state"
+	"github.com/joloxx9/silo-newsletter/internal/web"
 )
 
 var version = "dev"
@@ -31,7 +34,7 @@ Użycie:
   silo-newsletter users                  lista kont Silo
   silo-newsletter preview <ID konta>     zapisuje podgląd HTML (bez wysyłki)
   silo-newsletter send-test <ID konta>   wysyła newsletter tego konta na TestEmail
-  silo-newsletter run                    tryb kontenera (harmonogram: etap 2)
+  silo-newsletter run                    panel WWW (port 8080) i cotygodniowy harmonogram
 
 Konfiguracja: %s (zmienna SILO_NEWSLETTER_CONFIG zmienia ścieżkę).
 `
@@ -45,11 +48,10 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if os.Args[1] == "run" {
-		// Stage 1 container mode: stay up so commands can be run with
-		// docker exec. The weekly scheduler replaces this in stage 2.
-		log.Info("Silo Newsletter działa", "wersja", version, "konfiguracja", config.Path())
-		log.Info("Użyj: docker exec silo-newsletter silo-newsletter verify | users | preview <ID> | send-test <ID>")
-		<-ctx.Done()
+		if err := serve(ctx, log); err != nil {
+			log.Error("Silo Newsletter stopped", "error", err)
+			os.Exit(1)
+		}
 		return
 	}
 	if err := run(ctx, os.Args[1], os.Args[2:], log); err != nil {
@@ -158,36 +160,82 @@ func writePreview(n newsletter.Newsletter, directory string) error {
 }
 
 func sendTest(cfg config.Config, n newsletter.Newsletter) error {
-	raw, err := compose(cfg, n, cfg.TestEmail, "[TEST] ")
+	raw, err := delivery.Compose(cfg, n, cfg.TestEmail, "[TEST] ")
 	if err != nil {
 		return err
 	}
-	server := mail.Server{Host: cfg.SMTPHost, Port: cfg.SMTPPort, Username: cfg.SMTPUsername, Password: cfg.SMTPPassword, Security: cfg.SMTPSecurity}
-	if err := server.Send(cfg.FromEmail, cfg.TestEmail, raw); err != nil {
+	if err := delivery.SMTPSender(cfg, cfg.TestEmail, raw); err != nil {
 		return err
 	}
 	fmt.Printf("Wysłano test na TestEmail (%d KB).\n", len(raw)/1024)
 	return nil
 }
 
-func compose(cfg config.Config, n newsletter.Newsletter, to, subjectPrefix string) ([]byte, error) {
-	html, err := render.HTML(n, false)
+// serve runs the settings panel and the weekly scheduler until ctx ends.
+func serve(ctx context.Context, log *slog.Logger) error {
+	path := config.Path()
+	directory := filepath.Dir(path)
+	if probe, err := os.CreateTemp(directory, ".write-test-*"); err != nil {
+		log.Error("katalog danych nie jest zapisywalny; na Unraid uruchom: chown -R 99:100 /mnt/user/appdata/silo-newsletter", "katalog", directory)
+	} else {
+		probe.Close()
+		os.Remove(probe.Name())
+	}
+	store, err := state.Open(filepath.Join(directory, "state.json"))
 	if err != nil {
-		return nil, err
+		return err
 	}
-	text, err := render.Text(n)
-	if err != nil {
-		return nil, err
+	service := &delivery.Service{Store: store, Log: log, Send: delivery.SMTPSender, Sleep: sleepContext}
+	server := &web.Server{ConfigPath: path, Store: store, Delivery: service, Log: log, Version: version, Background: ctx}
+	handler := server.Handler()
+	address := ":" + envOr("PORT", "8080")
+	log.Info("Silo Newsletter działa", "wersja", version, "panel", address, "konfiguracja", path)
+	if code := server.SetupCode(); code != "" {
+		log.Info("PIERWSZE URUCHOMIENIE: otwórz panel i wpisz kod konfiguracji", "kod", code)
 	}
-	var inline []mail.Attachment
-	for _, image := range n.Images() {
-		inline = append(inline, mail.Attachment{CID: image.CID, ContentType: "image/jpeg", Data: image.Data})
+
+	runner := schedule.Runner{
+		LoadConfig: func() (config.Config, error) {
+			cfg, err := config.LoadFile(path)
+			return config.Effective(cfg), err
+		},
+		LastSlot:  store.LastSlot,
+		ClaimSlot: store.ClaimSlot,
+		SendAll: func(ctx context.Context, cfg config.Config) error {
+			_, err := service.SendAll(ctx, cfg, "scheduled")
+			return err
+		},
+		Log: log,
 	}
-	if to == "" {
-		return nil, errors.New("no recipient")
+	go runner.Run(ctx)
+
+	httpServer := &http.Server{Addr: address, Handler: handler, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
+	errs := make(chan error, 1)
+	go func() { errs <- httpServer.ListenAndServe() }()
+	select {
+	case <-ctx.Done():
+		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		return httpServer.Shutdown(shutdown)
+	case err := <-errs:
+		return err
 	}
-	return mail.Build(mail.Message{
-		FromName: cfg.FromName, FromEmail: cfg.FromEmail, ReplyTo: cfg.ReplyToEmail, To: to,
-		Subject: subjectPrefix + render.Subject(n), Text: text, HTML: html, Inline: inline,
-	})
+}
+
+func envOr(name, fallback string) string {
+	if value := os.Getenv(name); value != "" {
+		return value
+	}
+	return fallback
+}
+
+func sleepContext(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }

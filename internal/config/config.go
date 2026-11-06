@@ -43,7 +43,17 @@ type Config struct {
 	IncludeChildProfiles bool     `json:"IncludeChildProfiles"`
 	ExcludedUserIDs      []string `json:"ExcludedUserIds"`
 	IncludedLibraryIDs   []string `json:"IncludedLibraryIds"`
+	// EmailOverrides gives an address to accounts without one in Silo
+	// (keyed by Silo account ID). A Silo address always wins.
+	EmailOverrides map[string]string `json:"EmailOverrides"`
+
+	ScheduleEnabled  bool   `json:"ScheduleEnabled"`
+	ScheduleDay      string `json:"ScheduleDay"`  // Monday ... Sunday
+	ScheduleTime     string `json:"ScheduleTime"` // HH:MM, local TimeZone
+	SendDelaySeconds int    `json:"SendDelaySeconds"`
 }
+
+var Weekdays = []string{"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"}
 
 func Defaults() Config {
 	return Config{
@@ -55,6 +65,10 @@ func Defaults() Config {
 		DaysBack:     7,
 		MaxMovies:    8,
 		MaxShows:     8,
+
+		ScheduleDay:      "Friday",
+		ScheduleTime:     "09:30",
+		SendDelaySeconds: 5,
 	}
 }
 
@@ -69,6 +83,18 @@ func Path() string {
 // Load reads path (a missing file is allowed when the environment supplies
 // everything), applies environment overrides, and validates the result.
 func Load(path string) (Config, error) {
+	cfg, err := LoadFile(path)
+	if err != nil {
+		return Config{}, err
+	}
+	applyEnv(&cfg)
+	cfg.normalize()
+	return cfg, cfg.Validate()
+}
+
+// LoadFile reads only the file (defaults for a missing file), without
+// environment overrides or validation; the web panel edits this view.
+func LoadFile(path string) (Config, error) {
 	cfg := Defaults()
 	raw, err := os.ReadFile(path)
 	switch {
@@ -82,9 +108,43 @@ func Load(path string) (Config, error) {
 	default:
 		return Config{}, fmt.Errorf("config %s: %w", path, err)
 	}
+	return cfg, nil
+}
+
+// Effective applies environment overrides and normalization to a file view.
+func Effective(cfg Config) Config {
 	applyEnv(&cfg)
 	cfg.normalize()
-	return cfg, cfg.Validate()
+	return cfg
+}
+
+// Save writes the file atomically with owner-only permissions.
+func Save(path string, cfg Config) error {
+	raw, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return err
+	}
+	temporary := path + ".tmp"
+	if err := os.WriteFile(temporary, append(raw, '\n'), 0o600); err != nil {
+		return err
+	}
+	return os.Rename(temporary, path)
+}
+
+// Button is the newsletter button address: ButtonUrl or the Silo address.
+func (c Config) Button() string {
+	if strings.TrimSpace(c.ButtonURL) != "" {
+		return strings.TrimSpace(c.ButtonURL)
+	}
+	return strings.TrimRight(c.SiloURL, "/") + "/"
+}
+
+// RecipientEmail returns the delivery address for an account.
+func (c Config) RecipientEmail(accountID, siloEmail string) string {
+	if strings.TrimSpace(siloEmail) != "" {
+		return strings.TrimSpace(siloEmail)
+	}
+	return strings.TrimSpace(c.EmailOverrides[accountID])
 }
 
 func applyEnv(cfg *Config) {
@@ -125,9 +185,6 @@ func (c *Config) normalize() {
 	if strings.TrimSpace(c.ServerName) == "" {
 		c.ServerName = "Silo"
 	}
-	if strings.TrimSpace(c.ButtonURL) == "" {
-		c.ButtonURL = c.SiloURL + "/"
-	}
 }
 
 // Validate reports the first problem that would stop a newsletter run.
@@ -135,24 +192,46 @@ func (c Config) Validate() error {
 	parsed, err := url.Parse(c.SiloURL)
 	if c.SiloURL == "" || err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" ||
 		parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
-		return errors.New("SiloUrl must be an http(s) address such as http://192.168.1.10:8080")
+		return errors.New("adres Silo musi zaczynać się od http:// lub https://, np. http://192.168.1.10:8080")
 	}
 	if c.SiloAPIKey == "" || strings.ContainsAny(c.SiloAPIKey, " \t\r\n") || len(c.SiloAPIKey) > 512 {
-		return errors.New("SiloApiKey must be one Silo API key")
+		return errors.New("wpisz klucz API Silo")
 	}
 	if _, err := time.LoadLocation(c.TimeZone); err != nil {
-		return fmt.Errorf("TimeZone %q is not a known time zone", c.TimeZone)
+		return fmt.Errorf("nieznana strefa czasowa %q (np. Europe/Warsaw)", c.TimeZone)
 	}
 	if c.DaysBack < 1 || c.DaysBack > 60 {
-		return errors.New("DaysBack must be between 1 and 60")
+		return errors.New("liczba dni musi być od 1 do 60")
 	}
 	if c.MaxMovies < 0 || c.MaxMovies > 50 || c.MaxShows < 0 || c.MaxShows > 50 {
-		return errors.New("MaxMovies and MaxShows must be between 0 and 50")
+		return errors.New("maksymalna liczba filmów i seriali musi być od 0 do 50")
 	}
 	switch c.SMTPSecurity {
 	case "starttls", "tls", "none":
 	default:
-		return errors.New(`SmtpSecurity must be "starttls", "tls", or "none"`)
+		return errors.New("wybierz rodzaj szyfrowania SMTP")
+	}
+	return c.ValidateSchedule()
+}
+
+func (c Config) ValidateSchedule() error {
+	known := false
+	for _, day := range Weekdays {
+		known = known || day == c.ScheduleDay
+	}
+	if !known {
+		return errors.New("wybierz dzień wysyłki")
+	}
+	if parsed, err := time.Parse("15:04", c.ScheduleTime); err != nil || parsed.Format("15:04") != c.ScheduleTime {
+		return errors.New("godzina wysyłki musi mieć format GG:MM, np. 09:30")
+	}
+	if c.SendDelaySeconds < 0 || c.SendDelaySeconds > 600 {
+		return errors.New("przerwa między e-mailami musi być od 0 do 600 sekund")
+	}
+	for id, address := range c.EmailOverrides {
+		if parsed, err := mail.ParseAddress(address); err != nil || parsed.Address != strings.TrimSpace(address) {
+			return fmt.Errorf("adres zastępczy dla konta %s jest niepoprawny", id)
+		}
 	}
 	return nil
 }
@@ -160,23 +239,23 @@ func (c Config) Validate() error {
 // ValidateMail checks the settings needed only when sending email.
 func (c Config) ValidateMail() error {
 	if c.SMTPHost == "" || strings.ContainsAny(c.SMTPHost, ":/ ") {
-		return errors.New("SmtpHost must be a host name such as smtp.gmail.com")
+		return errors.New("podaj serwer SMTP, np. smtp.gmail.com")
 	}
 	if c.SMTPPort < 1 || c.SMTPPort > 65535 {
-		return errors.New("SmtpPort must be between 1 and 65535")
+		return errors.New("port SMTP musi być od 1 do 65535")
 	}
 	for name, value := range map[string]string{"FromEmail": c.FromEmail, "TestEmail": c.TestEmail} {
 		if _, err := mail.ParseAddress(value); err != nil || strings.TrimSpace(value) == "" {
-			return fmt.Errorf("%s must be an email address", name)
+			return fmt.Errorf("%s: wpisz poprawny adres e-mail", map[string]string{"FromEmail": "adres nadawcy", "TestEmail": "adres testowy"}[name])
 		}
 	}
 	if c.ReplyToEmail != "" {
 		if _, err := mail.ParseAddress(c.ReplyToEmail); err != nil {
-			return errors.New("ReplyToEmail must be an email address")
+			return errors.New("adres do odpowiedzi jest niepoprawny")
 		}
 	}
 	if (c.SMTPUsername == "") != (c.SMTPPassword == "") {
-		return errors.New("set both SmtpUsername and SmtpPassword, or neither")
+		return errors.New("podaj użytkownika i hasło SMTP (albo żadne z nich)")
 	}
 	return nil
 }

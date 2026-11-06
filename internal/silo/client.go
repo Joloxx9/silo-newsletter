@@ -41,9 +41,9 @@ type APIError struct {
 func (e *APIError) Error() string {
 	switch e.Status {
 	case http.StatusUnauthorized, http.StatusForbidden:
-		return fmt.Sprintf("Silo rejected the API key for %s (HTTP %d)", e.Path, e.Status)
+		return fmt.Sprintf("Silo odrzuciło klucz API (HTTP %d, %s); użyj klucza administratora bez ograniczeń uprawnień", e.Status, e.Path)
 	default:
-		return fmt.Sprintf("Silo answered HTTP %d for %s", e.Status, e.Path)
+		return fmt.Sprintf("Silo odpowiedziało HTTP %d dla %s", e.Status, e.Path)
 	}
 }
 
@@ -85,6 +85,15 @@ func (c *Client) endpoint(path string, query url.Values) string {
 
 // get performs one authenticated GET, retrying 429 and 503 answers.
 func (c *Client) get(ctx context.Context, path string, query url.Values, profileID string, target any) error {
+	// Silo requires the key owner's primary profile on admin routes, so
+	// every authenticated call except the profile lookup itself carries it.
+	if profileID == "" && path != "/api/v2/profiles" {
+		own, err := c.OwnProfile(ctx)
+		if err != nil {
+			return err
+		}
+		profileID = own
+	}
 	body, err := c.do(ctx, c.endpoint(path, query), path, profileID, true, maxResponseBytes)
 	if err != nil {
 		return err
@@ -113,7 +122,7 @@ func (c *Client) do(ctx context.Context, address, label, profileID string, authe
 			if ctx.Err() != nil {
 				return nil, ctx.Err()
 			}
-			return nil, fmt.Errorf("could not reach Silo for %s", label)
+			return nil, fmt.Errorf("brak połączenia z Silo (%s); sprawdź adres serwera", label)
 		}
 		if (response.StatusCode == http.StatusTooManyRequests || response.StatusCode == http.StatusServiceUnavailable) && attempt < maxRetries {
 			delay := retryDelay(response.Header.Get("Retry-After"), attempt)

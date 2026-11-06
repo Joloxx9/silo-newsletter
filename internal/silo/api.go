@@ -113,7 +113,7 @@ func (c *Client) Accounts(ctx context.Context) ([]Account, error) {
 // AccountProfiles lists an account's profiles. Silo may omit is_child here;
 // a missing flag is treated as an adult profile.
 func (c *Client) AccountProfiles(ctx context.Context, accountID string) ([]Profile, error) {
-	return paged[Profile](ctx, c, "/api/v2/admin/users/"+url.PathEscape(accountID)+"/profiles", url.Values{"limit": {"200"}}, "")
+	return paged[Profile](ctx, c, "/api/v2/admin/users/"+url.PathEscape(accountID)+"/profiles", nil, "")
 }
 
 // OwnProfile returns the key owner's primary (or first adult) profile, used
@@ -137,7 +137,7 @@ func (c *Client) OwnProfile(ctx context.Context) (string, error) {
 		}
 	}
 	if chosen == "" {
-		return "", errors.New("the Silo API key's account has no usable profile; use an unscoped administrator key")
+		return "", errors.New("konto klucza API nie ma profilu; użyj klucza administratora bez ograniczeń uprawnień")
 	}
 	c.profileID = chosen
 	return chosen, nil

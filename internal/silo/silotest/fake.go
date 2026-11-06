@@ -132,6 +132,11 @@ func (f *Fake) serve(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusTooManyRequests)
 		return
 	}
+	// Like Silo, admin routes require the caller's primary profile.
+	if strings.HasPrefix(r.URL.Path, "/api/v2/admin/") && r.Header.Get("X-Profile-Id") != ProfileID {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
 	query := r.URL.Query()
 	switch {
 	case r.URL.Path == "/api/v2/admin/users":

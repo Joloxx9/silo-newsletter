@@ -13,5 +13,6 @@ COPY --from=build /out/silo-newsletter /usr/local/bin/silo-newsletter
 USER 99:100
 ENV SILO_NEWSLETTER_CONFIG=/data/config.json
 VOLUME /data
+EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/silo-newsletter"]
 CMD ["run"]
