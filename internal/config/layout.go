@@ -40,6 +40,8 @@ type Section struct {
 	// Style is "list" or "grid"; it applies to movies and shows only.
 	Style   string `json:"Style"`
 	Columns int    `json:"Columns"` // grid posters per row, 2-4
+	// Width is "full" or "half"; two half sections in a row sit side by side.
+	Width string `json:"Width"`
 }
 
 func DefaultLayout() Layout {
@@ -84,6 +86,9 @@ func (l *Layout) Normalize() {
 		}
 		if section.Columns < 2 || section.Columns > 4 {
 			section.Columns = 3
+		}
+		if section.Width != "half" {
+			section.Width = "full"
 		}
 	}
 	l.Sections = sections

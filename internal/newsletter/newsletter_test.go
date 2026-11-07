@@ -213,6 +213,33 @@ func TestCustomLayout(t *testing.T) {
 	}
 }
 
+func TestHalfWidthSectionsShareARow(t *testing.T) {
+	_, client, cfg := setup(t)
+	cfg.Layout.Sections = []config.Section{
+		{ID: config.SectionPersonal, Enabled: true, Width: "half"},
+		{ID: config.SectionPopular, Enabled: true, Width: "half"},
+		{ID: config.SectionMovies, Enabled: true, Width: "half", Style: "grid", Columns: 2},
+		{ID: config.SectionShows, Enabled: true},
+	}
+	n := build(t, client, cfg, "1")
+	html, err := render.HTML(n, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Personal and popular pair up; movies has no half partner after it, so
+	// it takes the whole row with full-size posters.
+	if got := strings.Count(html, `class="half"`); got != 2 {
+		t.Fatalf("half cells: %d", got)
+	}
+	row := html[strings.Index(html, `class="half"`):]
+	if !strings.Contains(row[:strings.Index(row, "NOWE FILMY")], "NAJPOPULARNIEJSZE") {
+		t.Error("popular is not next to personal")
+	}
+	if !strings.Contains(html, `width="284"`) {
+		t.Error("full-width grid posters are not full size")
+	}
+}
+
 func TestLayoutNormalizeKeepsEverySectionOnce(t *testing.T) {
 	layout := config.Layout{Sections: []config.Section{{ID: "shows", Style: "grid", Columns: 9}, {ID: "shows"}, {ID: "bogus"}}}
 	layout.Normalize()

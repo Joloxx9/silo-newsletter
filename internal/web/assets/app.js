@@ -164,6 +164,12 @@ function sectionRow(section) {
     style.value = section.Style === "grid" ? `grid-${section.Columns}` : "list";
     item.append(style);
   }
+  const width = document.createElement("select");
+  width.dataset.width = "";
+  width.setAttribute("aria-label", `Szerokość: ${SECTION_NAMES[section.Id]}`);
+  width.append(new Option("cała szerokość", "full"), new Option("pół (obok następnej)", "half"));
+  width.value = section.Width === "half" ? "half" : "full";
+  item.append(width);
   for (const [text, step, name] of [["↑", -1, "wyżej"], ["↓", 1, "niżej"]]) {
     const button = document.createElement("button");
     button.type = "button";
@@ -195,8 +201,8 @@ function collectLayout() {
   for (const input of $$("[data-layout]")) layout[input.dataset.layout] = input.type === "checkbox" ? input.checked : input.value.trim();
   layout.AccentColor = $("#accent-default").checked ? "" : $("#accent-color").value;
   layout.Sections = $$("#sections li").map((item) => {
-    const [style, columns] = ($("select", item)?.value || "list").split("-");
-    return { Id: item.dataset.id, Enabled: $("input", item).checked, Style: style, Columns: Number(columns || 3) };
+    const [style, columns] = ($("select:not([data-width])", item)?.value || "list").split("-");
+    return { Id: item.dataset.id, Enabled: $("input", item).checked, Style: style, Columns: Number(columns || 3), Width: $("select[data-width]", item).value };
   });
   return layout;
 }

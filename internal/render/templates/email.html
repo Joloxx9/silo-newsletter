@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="{{.Layout.Theme}}">
 <title>{{.ServerName}} · {{.Period}}</title>
+<style>@media only screen and (max-width:600px) { .half { display:block !important; width:100% !important; padding:0 !important; } }</style>
 </head>
 <body style="margin:0;padding:0;background:{{.C.Background}};color:{{.C.Text}};font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{{.C.Background}};">
@@ -94,13 +95,21 @@
 </td></tr>
 {{end}}
 
-{{range .Blocks}}{{$b := part $ .}}
-{{if eq .ID "personal"}}{{template "personal" $b}}
-{{else if .Quiet}}<tr><td style="padding:20px;background:{{$.C.Card}};border-radius:14px;font-size:15px;color:{{$.C.Text}};">W tym tygodniu nie pojawiło się nic nowego. To dobry moment, żeby nadrobić zaległości!</td></tr>
-{{else if eq .ID "popular"}}{{template "heading" $b}}{{template "popular" $b}}
-{{else}}{{template "heading" $b}}{{if eq .Style "grid"}}{{template "grid" $b}}{{else}}{{template "list" $b}}{{end}}
-{{end}}
-{{end}}
+{{define "section"}}{{if eq .ID "personal"}}{{template "personal" .}}
+{{else if .Quiet}}<tr><td style="padding:20px;background:{{.V.C.Card}};border-radius:14px;font-size:15px;color:{{.V.C.Text}};">W tym tygodniu nie pojawiło się nic nowego. To dobry moment, żeby nadrobić zaległości!</td></tr>
+{{else if eq .ID "popular"}}{{template "heading" .}}{{template "popular" .}}
+{{else}}{{template "heading" .}}{{if eq .Style "grid"}}{{template "grid" .}}{{else}}{{template "list" .}}{{end}}
+{{end}}{{end}}
+
+{{range .Rows}}{{if eq (len .Blocks) 1}}{{template "section" (part $ (index .Blocks 0))}}
+{{else}}<tr><td style="padding:0;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+{{range $i, $block := .Blocks}}<td class="half" width="50%" valign="top" style="padding:{{if $i}}0 0 0 6px{{else}}0 6px 0 0{{end}};">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0">{{template "section" (part $ $block)}}</table>
+</td>{{end}}
+</tr></table>
+</td></tr>
+{{end}}{{end}}
 
 <tr><td align="center" style="padding:28px 0 8px 0;">
   <a href="{{.ButtonURL}}" style="display:inline-block;background:{{.C.Accent}};color:{{.C.ButtonText}};text-decoration:none;font-weight:700;font-size:15px;padding:12px 28px;border-radius:999px;">Otwórz {{.ServerName}}</a>
