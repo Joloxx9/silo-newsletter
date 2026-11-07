@@ -59,7 +59,7 @@ jobs:
           docker logs smoke
           test "$(docker inspect -f {{.State.Running}} smoke)" = true
           test "$(sudo stat -c %u:%g data)" = 99:100
-          test "$(docker top smoke -o uid | tail -1 | tr -d " ")" = 99
+          test "$(ps -o uid= -p "$(docker inspect -f {{.State.Pid}} smoke)" | tr -d " ")" = 99
       - uses: docker/login-action@v3
         if: github.event_name != 'pull_request'
         with:
