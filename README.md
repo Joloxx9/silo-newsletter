@@ -31,9 +31,8 @@ services:
       - /mnt/user/appdata/silo-newsletter:/data
 ```
 
-1. Przed pierwszym startem: `mkdir -p /mnt/user/appdata/silo-newsletter && chown -R 99:100 /mnt/user/appdata/silo-newsletter`
-2. Uruchom kontener i otwórz `http://IP-UNRAIDA:8095`.
-3. Przejdź przez zakładki: Połączenie → E-mail → Treść → Odbiorcy → Harmonogram, sprawdź Podgląd.
+1. Uruchom kontener i otwórz `http://IP-UNRAIDA:8095`. Folder w appdata kontener tworzy i ustawia sam (właściciel `99:100`; inny ustawisz zmiennymi `PUID` i `PGID`).
+2. Przejdź przez zakładki: Połączenie → E-mail → Treść → Odbiorcy → Harmonogram, sprawdź Podgląd.
 
 Polecenia w terminalu nadal działają (`docker exec silo-newsletter silo-newsletter verify | users | preview <ID> | send-test <ID>`).
 Ustawienia ze zmiennych środowiskowych (`SILO_URL`, `SILO_API_KEY`, `SMTP_*`, `FROM_EMAIL`, `TEST_EMAIL`, ...) mają pierwszeństwo przed panelem.

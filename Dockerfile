@@ -9,8 +9,8 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
 
 FROM gcr.io/distroless/static-debian12
 COPY --from=build /out/silo-newsletter /usr/local/bin/silo-newsletter
-# Unraid's default nobody:users, so files in appdata stay editable.
-USER 99:100
+# Starts as root only to give /data to PUID:PGID (default 99:100, Unraid's
+# nobody:users), then switches to that user before doing anything else.
 ENV SILO_NEWSLETTER_CONFIG=/data/config.json
 VOLUME /data
 EXPOSE 8080

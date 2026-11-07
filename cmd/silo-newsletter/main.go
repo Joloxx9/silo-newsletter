@@ -45,6 +45,10 @@ func main() {
 		fmt.Printf(usage, version, config.Path())
 		return
 	}
+	if err := dropRoot(filepath.Dir(config.Path())); err != nil {
+		log.Error("nie można przygotować katalogu danych", "error", err)
+		os.Exit(1)
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if os.Args[1] == "run" {
@@ -176,7 +180,7 @@ func serve(ctx context.Context, log *slog.Logger) error {
 	path := config.Path()
 	directory := filepath.Dir(path)
 	if probe, err := os.CreateTemp(directory, ".write-test-*"); err != nil {
-		log.Error("katalog danych nie jest zapisywalny; na Unraid uruchom: chown -R 99:100 /mnt/user/appdata/silo-newsletter", "katalog", directory)
+		log.Error("katalog danych nie jest zapisywalny; nie ustawiaj user: w compose albo nadaj katalogowi właściciela tego użytkownika", "katalog", directory)
 	} else {
 		probe.Close()
 		os.Remove(probe.Name())
