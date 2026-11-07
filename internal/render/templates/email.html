@@ -3,54 +3,60 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="dark">
-<title>{{.ServerName}} · {{period .Newsletter}}</title>
+<meta name="color-scheme" content="{{.Layout.Theme}}">
+<title>{{.ServerName}} · {{.Period}}</title>
 </head>
-<body style="margin:0;padding:0;background:#0d0f14;color:#e8eaf0;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0d0f14;">
+<body style="margin:0;padding:0;background:{{.C.Background}};color:{{.C.Text}};font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{{.C.Background}};">
 <tr><td align="center" style="padding:24px 12px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;">
 
 <tr><td style="padding:8px 4px 20px 4px;">
-  <div style="font-size:13px;letter-spacing:3px;color:#8fa3ff;font-weight:700;">{{upper .ServerName}} · NEWSLETTER</div>
-  <div style="font-size:28px;font-weight:700;color:#ffffff;margin-top:6px;">Cześć, {{.RecipientName}}!</div>
-  <div style="font-size:15px;color:#a9afbf;margin-top:6px;">Podsumowanie tygodnia: {{period .Newsletter}}</div>
+  {{if .Logo}}<img src="{{call .ImageSrc .Logo}}" alt="{{.ServerName}}" style="display:block;max-width:240px;max-height:80px;margin-bottom:14px;">{{end}}
+  {{if .Heading}}<div style="font-size:13px;letter-spacing:3px;color:{{.C.Accent}};font-weight:700;">{{upper .Heading}}</div>{{end}}
+  {{if .Greeting}}<div style="font-size:28px;font-weight:700;color:{{.C.Strong}};margin-top:6px;">{{.Greeting}}</div>{{end}}
+  {{if .Intro}}<div style="font-size:15px;color:{{.C.Muted}};margin-top:6px;">{{.Intro}}</div>{{end}}
 </td></tr>
 
-{{with .Personal}}
-<tr><td style="background:#161a23;border-radius:14px;padding:20px;">
-  <div style="font-size:12px;letter-spacing:2px;color:#8fa3ff;font-weight:700;">TWÓJ TYDZIEŃ</div>
+{{define "heading"}}<tr><td style="padding:24px 4px 4px 4px;font-size:12px;letter-spacing:2px;color:{{.V.C.Accent}};font-weight:700;">{{.Heading}}</td></tr>{{end}}
+
+{{define "ratings"}}{{if or .IMDb .RTCritic .RTAudience}}
+  {{if .IMDb}}<span style="background:#f5c518;color:#000;font-weight:700;border-radius:4px;padding:1px 5px;">IMDb</span> {{.IMDb}}&nbsp;&nbsp;{{end}}
+  {{if .RTCritic}}{{if rtFresh .RTCritic}}🍅{{else}}🤢{{end}} {{.RTCritic}}%&nbsp;&nbsp;{{end}}
+  {{if .RTAudience}}{{if rtFresh .RTAudience}}🍿{{else}}🥤{{end}} {{.RTAudience}}%{{end}}
+{{end}}{{end}}
+
+{{define "personal"}}{{with .V.Personal}}
+<tr><td style="background:{{$.V.C.Card}};border-radius:14px;padding:20px;">
+  <div style="font-size:12px;letter-spacing:2px;color:{{$.V.C.Accent}};font-weight:700;">TWÓJ TYDZIEŃ</div>
   {{if gt .Plays 0}}
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;">
   <tr>
-    <td width="33%" style="padding:4px;"><div style="font-size:24px;font-weight:700;color:#fff;">{{duration .Seconds}}</div><div style="font-size:13px;color:#a9afbf;">oglądania</div></td>
-    <td width="33%" style="padding:4px;"><div style="font-size:24px;font-weight:700;color:#fff;">{{.Movies}}</div><div style="font-size:13px;color:#a9afbf;">{{plural .Movies "film" "filmy" "filmów"}}</div></td>
-    <td width="33%" style="padding:4px;"><div style="font-size:24px;font-weight:700;color:#fff;">{{.Episodes}}</div><div style="font-size:13px;color:#a9afbf;">{{plural .Episodes "odcinek" "odcinki" "odcinków"}}</div></td>
+    <td width="33%" style="padding:4px;"><div style="font-size:24px;font-weight:700;color:{{$.V.C.Strong}};">{{duration .Seconds}}</div><div style="font-size:13px;color:{{$.V.C.Muted}};">oglądania</div></td>
+    <td width="33%" style="padding:4px;"><div style="font-size:24px;font-weight:700;color:{{$.V.C.Strong}};">{{.Movies}}</div><div style="font-size:13px;color:{{$.V.C.Muted}};">{{plural .Movies "film" "filmy" "filmów"}}</div></td>
+    <td width="33%" style="padding:4px;"><div style="font-size:24px;font-weight:700;color:{{$.V.C.Strong}};">{{.Episodes}}</div><div style="font-size:13px;color:{{$.V.C.Muted}};">{{plural .Episodes "odcinek" "odcinki" "odcinków"}}</div></td>
   </tr>
   </table>
-  {{if .TopShow}}<div style="font-size:14px;color:#d5d9e4;margin-top:12px;">Najczęściej oglądany serial: <strong style="color:#fff;">{{.TopShow}}</strong> ({{.TopShowEp}} {{plural .TopShowEp "odcinek" "odcinki" "odcinków"}})</div>{{end}}
-  {{if .Recent}}<div style="font-size:13px;color:#a9afbf;margin-top:8px;">Ostatnio: {{range $i, $name := .Recent}}{{if $i}}, {{end}}{{$name}}{{end}}</div>{{end}}
+  {{if .TopShow}}<div style="font-size:14px;color:{{$.V.C.Text}};margin-top:12px;">Najczęściej oglądany serial: <strong style="color:{{$.V.C.Strong}};">{{.TopShow}}</strong> ({{.TopShowEp}} {{plural .TopShowEp "odcinek" "odcinki" "odcinków"}})</div>{{end}}
+  {{if .Recent}}<div style="font-size:13px;color:{{$.V.C.Muted}};margin-top:8px;">Ostatnio: {{range $i, $name := .Recent}}{{if $i}}, {{end}}{{$name}}{{end}}</div>{{end}}
   {{else}}
-  <div style="font-size:15px;color:#d5d9e4;margin-top:10px;">W tym tygodniu nie było seansów — poniżej nowości, od których warto zacząć.</div>
+  <div style="font-size:15px;color:{{$.V.C.Text}};margin-top:10px;">W tym tygodniu nie było seansów — poniżej nowości, od których warto zacząć.</div>
   {{end}}
 </td></tr>
-{{end}}
+<tr><td style="height:8px;line-height:8px;font-size:0;">&nbsp;</td></tr>
+{{end}}{{end}}
 
-{{define "titles"}}
+{{define "list"}}{{$v := .V}}{{$l := .V.Layout}}
 {{range .Items}}
 <tr><td style="padding:8px 0;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#161a23;border-radius:14px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{{$v.C.Card}};border-radius:14px;">
 <tr>
-  {{if .Poster}}<td width="110" valign="top" style="padding:12px;"><img src="{{call $.ImageSrc .Poster}}" width="100" alt="" style="display:block;width:100px;border-radius:8px;"></td>{{end}}
+  {{if .Poster}}<td width="110" valign="top" style="padding:12px;"><img src="{{call $v.ImageSrc .Poster}}" width="100" alt="" style="display:block;width:100px;border-radius:8px;"></td>{{end}}
   <td valign="top" style="padding:14px 14px 14px {{if .Poster}}4px{{else}}14px{{end}};">
-    <div style="font-size:17px;font-weight:700;color:#fff;">{{.Name}}{{if .Year}} <span style="color:#8a90a2;font-weight:400;">({{.Year}})</span>{{end}}</div>
-    {{if .Detail}}<div style="font-size:13px;color:#8fa3ff;margin-top:4px;">{{.Detail}}</div>{{end}}
-    {{if or .IMDb .RTCritic .RTAudience}}<div style="font-size:13px;color:#d5d9e4;margin-top:6px;">
-      {{if .IMDb}}<span style="background:#f5c518;color:#000;font-weight:700;border-radius:4px;padding:1px 5px;">IMDb</span> {{.IMDb}}&nbsp;&nbsp;{{end}}
-      {{if .RTCritic}}{{if rtFresh .RTCritic}}🍅{{else}}🤢{{end}} {{.RTCritic}}%&nbsp;&nbsp;{{end}}
-      {{if .RTAudience}}{{if rtFresh .RTAudience}}🍿{{else}}🥤{{end}} {{.RTAudience}}%{{end}}
-    </div>{{end}}
-    {{if .Overview}}<div style="font-size:13px;line-height:1.5;color:#a9afbf;margin-top:8px;">{{.Overview}}</div>{{end}}
+    <div style="font-size:17px;font-weight:700;color:{{$v.C.Strong}};">{{.Name}}{{if and $l.ShowYear .Year}} <span style="color:{{$v.C.Faint}};font-weight:400;">({{.Year}})</span>{{end}}</div>
+    {{if and $l.ShowDetail .Detail}}<div style="font-size:13px;color:{{$v.C.Accent}};margin-top:4px;">{{.Detail}}</div>{{end}}
+    {{if $l.ShowRatings}}{{if or .IMDb .RTCritic .RTAudience}}<div style="font-size:13px;color:{{$v.C.Text}};margin-top:6px;">{{template "ratings" .}}</div>{{end}}{{end}}
+    {{if and $l.ShowOverview .Overview}}<div style="font-size:13px;line-height:1.5;color:{{$v.C.Muted}};margin-top:8px;">{{.Overview}}</div>{{end}}
   </td>
 </tr>
 </table>
@@ -58,31 +64,48 @@
 {{end}}
 {{end}}
 
-{{if .NewMovies}}
-<tr><td style="padding:24px 4px 4px 4px;font-size:12px;letter-spacing:2px;color:#8fa3ff;font-weight:700;">NOWE FILMY</td></tr>
-{{template "titles" (titlesView $ .NewMovies)}}
-{{end}}
-
-{{if .NewShows}}
-<tr><td style="padding:24px 4px 4px 4px;font-size:12px;letter-spacing:2px;color:#8fa3ff;font-weight:700;">NOWE ODCINKI I SERIALE</td></tr>
-{{template "titles" (titlesView $ .NewShows)}}
-{{end}}
-
-{{if and (not .NewMovies) (not .NewShows)}}
-<tr><td style="padding:20px;background:#161a23;border-radius:14px;margin-top:16px;font-size:15px;color:#d5d9e4;">W tym tygodniu nie pojawiło się nic nowego. To dobry moment, żeby nadrobić zaległości!</td></tr>
-{{end}}
-
-{{if .Popular}}
-<tr><td style="padding:24px 4px 4px 4px;font-size:12px;letter-spacing:2px;color:#8fa3ff;font-weight:700;">NAJPOPULARNIEJSZE NA SERWERZE</td></tr>
-<tr><td style="background:#161a23;border-radius:14px;padding:12px 18px;">
-  {{range $i, $p := .Popular}}<div style="font-size:14px;color:#d5d9e4;padding:6px 0;"><span style="color:#8fa3ff;font-weight:700;">{{add $i 1}}.</span> {{$p.Name}} <span style="color:#8a90a2;">· {{$p.Viewers}} {{plural $p.Viewers "osoba" "osoby" "osób"}}</span></div>{{end}}
+{{define "grid"}}{{$v := .V}}{{$l := .V.Layout}}{{$b := .}}
+{{range .Rows}}
+<tr><td style="padding:4px 0;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="table-layout:fixed;">
+<tr>
+  {{range .}}
+  <td width="{{$b.CellPercent}}" valign="top" style="padding:4px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{{$v.C.Card}};border-radius:12px;">
+    <tr><td style="padding:8px;">
+      {{if .Poster}}<img src="{{call $v.ImageSrc .Poster}}" width="{{$b.CellWidth}}" alt="" style="display:block;width:100%;max-width:{{$b.CellWidth}}px;height:auto;border-radius:8px;">{{end}}
+      <div style="font-size:14px;font-weight:700;color:{{$v.C.Strong}};margin-top:8px;">{{.Name}}{{if and $l.ShowYear .Year}} <span style="color:{{$v.C.Faint}};font-weight:400;">({{.Year}})</span>{{end}}</div>
+      {{if and $l.ShowDetail .Detail}}<div style="font-size:12px;color:{{$v.C.Accent}};margin-top:3px;">{{.Detail}}</div>{{end}}
+      {{if $l.ShowRatings}}{{if or .IMDb .RTCritic .RTAudience}}<div style="font-size:12px;color:{{$v.C.Text}};margin-top:5px;">{{template "ratings" .}}</div>{{end}}{{end}}
+    </td></tr>
+    </table>
+  </td>
+  {{end}}
+  {{range $b.Fill .}}<td width="{{$b.CellPercent}}" style="padding:4px;"></td>{{end}}
+</tr>
+</table>
 </td></tr>
+{{end}}
+{{end}}
+
+{{define "popular"}}
+<tr><td style="background:{{.V.C.Card}};border-radius:14px;padding:12px 18px;">
+  {{range $i, $p := .V.Popular}}<div style="font-size:14px;color:{{$.V.C.Text}};padding:6px 0;"><span style="color:{{$.V.C.Accent}};font-weight:700;">{{add $i 1}}.</span> {{$p.Name}} <span style="color:{{$.V.C.Faint}};">· {{$p.Viewers}} {{plural $p.Viewers "osoba" "osoby" "osób"}}</span></div>{{end}}
+</td></tr>
+{{end}}
+
+{{range .Blocks}}{{$b := part $ .}}
+{{if eq .ID "personal"}}{{template "personal" $b}}
+{{else if .Quiet}}<tr><td style="padding:20px;background:{{$.C.Card}};border-radius:14px;font-size:15px;color:{{$.C.Text}};">W tym tygodniu nie pojawiło się nic nowego. To dobry moment, żeby nadrobić zaległości!</td></tr>
+{{else if eq .ID "popular"}}{{template "heading" $b}}{{template "popular" $b}}
+{{else}}{{template "heading" $b}}{{if eq .Style "grid"}}{{template "grid" $b}}{{else}}{{template "list" $b}}{{end}}
+{{end}}
 {{end}}
 
 <tr><td align="center" style="padding:28px 0 8px 0;">
-  <a href="{{.ButtonURL}}" style="display:inline-block;background:#5b6cff;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 28px;border-radius:999px;">Otwórz {{.ServerName}}</a>
+  <a href="{{.ButtonURL}}" style="display:inline-block;background:{{.C.Accent}};color:{{.C.ButtonText}};text-decoration:none;font-weight:700;font-size:15px;padding:12px 28px;border-radius:999px;">Otwórz {{.ServerName}}</a>
 </td></tr>
-<tr><td align="center" style="padding:12px 0;font-size:12px;color:#6c7286;">Ten e-mail wysłał serwer {{.ServerName}}, bo masz na nim konto.</td></tr>
+<tr><td align="center" style="padding:12px 0;font-size:12px;color:{{.C.Footer}};">Ten e-mail wysłał serwer {{.ServerName}}, bo masz na nim konto.</td></tr>
 
 </table>
 </td></tr>

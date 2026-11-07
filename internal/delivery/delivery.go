@@ -196,7 +196,7 @@ func Compose(cfg config.Config, n newsletter.Newsletter, to, subjectPrefix strin
 	}
 	var inline []mail.Attachment
 	for _, image := range n.Images() {
-		inline = append(inline, mail.Attachment{CID: image.CID, ContentType: "image/jpeg", Data: image.Data})
+		inline = append(inline, mail.Attachment{CID: image.CID, ContentType: image.Type, Data: image.Data})
 	}
 	return mail.Build(mail.Message{
 		FromName: cfg.FromName, FromEmail: cfg.FromEmail, ReplyTo: cfg.ReplyToEmail, To: to,

@@ -105,6 +105,7 @@ type configView struct {
 	Problem         string
 	MailProblem     string
 	Weekdays        []string
+	DefaultLayout   config.Layout
 }
 
 func (s *Server) fileConfig() (config.Config, error) {
@@ -127,7 +128,8 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, _ *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	view := configView{Config: cfg, HasSiloAPIKey: cfg.SiloAPIKey != "", HasSMTPPassword: cfg.SMTPPassword != "", Weekdays: config.Weekdays}
+	view := configView{Config: cfg, HasSiloAPIKey: cfg.SiloAPIKey != "", HasSMTPPassword: cfg.SMTPPassword != "", Weekdays: config.Weekdays,
+		DefaultLayout: config.DefaultLayout()}
 	effective := config.Effective(cfg)
 	if err := effective.Validate(); err != nil {
 		view.Problem = err.Error()
@@ -140,7 +142,8 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
-	var incoming config.Config
+	// Fields the request leaves out (e.g. Layout from an older panel) keep defaults.
+	incoming := config.Defaults()
 	if !decode(w, r, &incoming) {
 		return
 	}
@@ -168,6 +171,11 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 				incoming.EmailOverrides[id] = strings.TrimSpace(address)
 			}
 		}
+	}
+	incoming.Layout.Normalize()
+	if err := incoming.Layout.Validate(); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
 	}
 	if err := incoming.ValidateSchedule(); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())

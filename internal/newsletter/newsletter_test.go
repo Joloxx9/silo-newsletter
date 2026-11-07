@@ -2,8 +2,12 @@ package newsletter_test
 
 import (
 	"context"
+	"image"
+	"image/png"
 	"io"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -156,6 +160,71 @@ func TestQuietWeek(t *testing.T) {
 	}
 	if len(n.NewMovies)+len(n.NewShows) != 0 || !strings.Contains(html, "nie pojawiło się nic nowego") || !strings.Contains(html, "nie było seansów") {
 		t.Fatalf("quiet week rendering: movies=%d shows=%d", len(n.NewMovies), len(n.NewShows))
+	}
+}
+
+func TestCustomLayout(t *testing.T) {
+	_, client, cfg := setup(t)
+	logo := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = png.Encode(w, image.NewNRGBA(image.Rect(0, 0, 600, 200)))
+	}))
+	defer logo.Close()
+	cfg.Layout = config.Layout{
+		Sections: []config.Section{
+			{ID: config.SectionPopular, Enabled: true},
+			{ID: config.SectionMovies, Enabled: true, Style: "grid", Columns: 2},
+			{ID: config.SectionPersonal, Enabled: false},
+		},
+		Theme:       "light",
+		AccentColor: "#ff8800",
+		Heading:     "Kino {serwer}",
+		Greeting:    "Hej {imie}",
+		LogoURL:     logo.URL,
+		ShowYear:    true,
+	}
+	cfg.Layout.Normalize()
+	if err := cfg.Layout.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	n := build(t, client, cfg, "1")
+	html, err := render.HTML(n, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"KINO SILO", "Hej alice", "background:#eef0f4", "background:#ff8800;color:#111318", `width="50%"`, "cid:logo@silo-newsletter", "NOWE ODCINKI I SERIALE"} {
+		if !strings.Contains(html, want) {
+			t.Errorf("HTML is missing %q", want)
+		}
+	}
+	for _, unwanted := range []string{"TWÓJ TYDZIEŃ", "🍅", "Podsumowanie tygodnia"} {
+		if strings.Contains(html, unwanted) {
+			t.Errorf("HTML shows hidden %q", unwanted)
+		}
+	}
+	if popular, movies, shows := strings.Index(html, "NAJPOPULARNIEJSZE"), strings.Index(html, "NOWE FILMY"), strings.Index(html, "NOWE ODCINKI"); !(popular < movies && movies < shows) {
+		t.Errorf("section order: popular %d, movies %d, shows %d", popular, movies, shows)
+	}
+	if n.Logo == nil || n.Logo.Type != "image/png" || n.Images()[0].CID != "logo@silo-newsletter" {
+		t.Error("logo is not attached as PNG")
+	}
+	text, _ := render.Text(n)
+	if strings.Contains(text, "TWÓJ TYDZIEŃ") || strings.Index(text, "NAJPOPULARNIEJSZE") > strings.Index(text, "NOWE FILMY") {
+		t.Errorf("text ignores the layout:\n%s", text)
+	}
+}
+
+func TestLayoutNormalizeKeepsEverySectionOnce(t *testing.T) {
+	layout := config.Layout{Sections: []config.Section{{ID: "shows", Style: "grid", Columns: 9}, {ID: "shows"}, {ID: "bogus"}}}
+	layout.Normalize()
+	var ids []string
+	for _, section := range layout.Sections {
+		ids = append(ids, section.ID)
+	}
+	if strings.Join(ids, ",") != "shows,personal,movies,popular" || layout.Sections[0].Columns != 3 || layout.Sections[0].Enabled || layout.Theme != "dark" {
+		t.Fatalf("normalized: %+v", layout)
+	}
+	if (config.Layout{AccentColor: "red"}).Validate() == nil || (config.Layout{LogoURL: "file:///etc/passwd"}).Validate() == nil {
+		t.Fatal("bad color or logo address accepted")
 	}
 }
 

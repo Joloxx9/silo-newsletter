@@ -4,7 +4,9 @@ package newsletter
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
@@ -18,6 +20,7 @@ import (
 // Image is one inline picture, referenced from HTML as cid:<CID>.
 type Image struct {
 	CID  string
+	Type string // MIME type
 	Data []byte
 }
 
@@ -59,10 +62,15 @@ type Newsletter struct {
 	NewShows      []Title
 	Popular       []Popular
 	Personal      Personal
+	Layout        config.Layout
+	Logo          *Image
 }
 
 func (n Newsletter) Images() []Image {
 	var result []Image
+	if n.Logo != nil {
+		result = append(result, *n.Logo)
+	}
 	for _, group := range [][]Title{n.NewMovies, n.NewShows} {
 		for _, title := range group {
 			if title.Poster != nil {
@@ -87,6 +95,7 @@ type Builder struct {
 	popular   []Popular
 	allPlays  []silo.HistoryEntry
 	childByID map[string]map[string]bool
+	logo      *Image
 }
 
 type entry struct {
@@ -114,6 +123,9 @@ func NewBuilder(ctx context.Context, client *silo.Client, cfg config.Config, now
 	}
 	b.allPlays = plays
 	b.popular = b.computePopular(ctx, plays)
+	if cfg.Layout.LogoURL != "" {
+		b.logo = b.loadLogo(ctx, cfg.Layout.LogoURL)
+	}
 	return b, nil
 }
 
@@ -269,7 +281,7 @@ func (b *Builder) describe(ctx context.Context, contentID, fallbackTitle string,
 		} else if jpeg, err := images.ToJPEG(data, 300); err != nil {
 			b.log.Warn("poster conversion failed", "item", contentID, "error", err)
 		} else {
-			title.Poster = &Image{CID: "poster-" + sanitizeCID(contentID) + "@silo-newsletter", Data: jpeg}
+			title.Poster = &Image{CID: "poster-" + sanitizeCID(contentID) + "@silo-newsletter", Type: "image/jpeg", Data: jpeg}
 		}
 	}
 	return title
@@ -339,6 +351,8 @@ func (b *Builder) Build(ctx context.Context, account silo.Account) Newsletter {
 		From:          b.from,
 		To:            b.to,
 		Popular:       b.popular,
+		Layout:        b.cfg.Layout,
+		Logo:          b.logo,
 	}
 	for _, movie := range b.movies {
 		if accountCanSee(account.LibraryIDs, movie.libraries) {
@@ -438,4 +452,39 @@ func sanitizeCID(value string) string {
 		}
 		return '-'
 	}, value)
+}
+
+const maxLogoBytes = 5 << 20
+
+// loadLogo downloads the header logo once per run. A broken logo only
+// leaves the header without it.
+func (b *Builder) loadLogo(ctx context.Context, address string) *Image {
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, address, nil)
+	if err != nil {
+		b.log.Warn("logo address is invalid", "error", err)
+		return nil
+	}
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		b.log.Warn("logo download failed", "error", err)
+		return nil
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		b.log.Warn("logo download failed", "status", response.Status)
+		return nil
+	}
+	data, err := io.ReadAll(io.LimitReader(response.Body, maxLogoBytes+1))
+	if err != nil || len(data) > maxLogoBytes {
+		b.log.Warn("logo download failed", "error", err, "bytes", len(data))
+		return nil
+	}
+	encoded, err := images.ToPNG(data, 480)
+	if err != nil {
+		b.log.Warn("logo conversion failed", "error", err)
+		return nil
+	}
+	return &Image{CID: "logo@silo-newsletter", Type: "image/png", Data: encoded}
 }

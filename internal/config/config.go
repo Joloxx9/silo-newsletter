@@ -51,6 +51,8 @@ type Config struct {
 	ScheduleDay      string `json:"ScheduleDay"`  // Monday ... Sunday
 	ScheduleTime     string `json:"ScheduleTime"` // HH:MM, local TimeZone
 	SendDelaySeconds int    `json:"SendDelaySeconds"`
+
+	Layout Layout `json:"Layout"`
 }
 
 var Weekdays = []string{"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"}
@@ -69,6 +71,8 @@ func Defaults() Config {
 		ScheduleDay:      "Friday",
 		ScheduleTime:     "09:30",
 		SendDelaySeconds: 5,
+
+		Layout: DefaultLayout(),
 	}
 }
 
@@ -182,6 +186,7 @@ func (c *Config) normalize() {
 	if c.SMTPSecurity == "" {
 		c.SMTPSecurity = "starttls"
 	}
+	c.Layout.Normalize()
 	if strings.TrimSpace(c.ServerName) == "" {
 		c.ServerName = "Silo"
 	}
@@ -210,6 +215,9 @@ func (c Config) Validate() error {
 	case "starttls", "tls", "none":
 	default:
 		return errors.New("wybierz rodzaj szyfrowania SMTP")
+	}
+	if err := c.Layout.Validate(); err != nil {
+		return err
 	}
 	return c.ValidateSchedule()
 }

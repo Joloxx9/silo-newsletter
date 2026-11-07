@@ -190,3 +190,26 @@ func TestUsersPreviewAndSendAll(t *testing.T) {
 		t.Fatal("newsletters were not isolated per recipient")
 	}
 }
+
+func TestLayoutIsSavedNormalizedAndValidated(t *testing.T) {
+	h := newHarness(t)
+	h.configure()
+	_, current, _ := h.call("GET", "/api/config", nil, false)
+	if current["DefaultLayout"] == nil || current["Layout"] == nil {
+		t.Fatalf("config has no layout: %v", current)
+	}
+	cfg, _ := config.LoadFile(h.path)
+	cfg.Layout.Sections = []config.Section{{ID: config.SectionShows, Enabled: true, Style: "grid", Columns: 4}}
+	cfg.Layout.Theme = "light"
+	if code, body, _ := h.call("PUT", "/api/config", cfg, true); code != 200 {
+		t.Fatalf("save layout: %d %v", code, body)
+	}
+	saved, _ := config.LoadFile(h.path)
+	if len(saved.Layout.Sections) != 4 || saved.Layout.Sections[0].ID != config.SectionShows || saved.Layout.Sections[0].Columns != 4 || saved.Layout.Theme != "light" {
+		t.Fatalf("saved layout: %+v", saved.Layout)
+	}
+	cfg.Layout.AccentColor = "javascript:alert(1)"
+	if code, _, _ := h.call("PUT", "/api/config", cfg, true); code != http.StatusBadRequest {
+		t.Fatalf("bad accent color accepted: %d", code)
+	}
+}

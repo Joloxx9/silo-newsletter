@@ -7,7 +7,7 @@ const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selec
 const CONFIG_KEYS = ["SiloUrl", "SiloApiKey", "ServerName", "ButtonUrl", "FromName", "FromEmail", "ReplyToEmail", "TestEmail",
   "SmtpHost", "SmtpPort", "SmtpUsername", "SmtpPassword", "SmtpSecurity", "TimeZone", "DaysBack", "MaxMovies", "MaxShows",
   "IncludeChildProfiles", "ExcludedUserIds", "IncludedLibraryIds", "EmailOverrides", "ScheduleEnabled", "ScheduleDay",
-  "ScheduleTime", "SendDelaySeconds"];
+  "ScheduleTime", "SendDelaySeconds", "Layout"];
 const NUMBER_KEYS = new Set(["SmtpPort", "DaysBack", "MaxMovies", "MaxShows", "SendDelaySeconds"]);
 const DAY_NAMES = { Monday: "poniedziałek", Tuesday: "wtorek", Wednesday: "środa", Thursday: "czwartek", Friday: "piątek", Saturday: "sobota", Sunday: "niedziela" };
 
@@ -71,6 +71,7 @@ function fillForms() {
       } else input.value = value ?? "";
     }
   }
+  fillLayout(config.Layout);
   const mailProblem = $("[data-mail-problem]");
   mailProblem.textContent = config.MailProblem ? `Do wysyłki brakuje: ${config.MailProblem}` : "Ustawienia e-mail są kompletne.";
   mailProblem.className = "result " + (config.MailProblem ? "err" : "ok");
@@ -107,6 +108,7 @@ function collectConfig() {
   result.ExcludedUserIds = result.ExcludedUserIds || [];
   result.IncludedLibraryIds = result.IncludedLibraryIds || [];
   result.EmailOverrides = result.EmailOverrides || {};
+  if ($$("#sections li").length) result.Layout = collectLayout();
   return result;
 }
 
@@ -139,6 +141,87 @@ $("#test-silo").addEventListener("click", (event) => busy(event.target, async ()
     result.className = "result err";
     result.textContent = error.message;
   }
+}));
+
+// ---------- layout ----------
+
+const SECTION_NAMES = { personal: "Twój tydzień (statystyki)", movies: "Nowe filmy", shows: "Nowe odcinki i seriale", popular: "Najpopularniejsze na serwerze" };
+const THEME_ACCENTS = { dark: "#8fa3ff", light: "#4253e0" };
+
+function sectionRow(section) {
+  const item = document.createElement("li");
+  item.dataset.id = section.Id;
+  const label = document.createElement("label");
+  const box = document.createElement("input");
+  box.type = "checkbox";
+  box.checked = section.Enabled;
+  label.append(box, ` ${SECTION_NAMES[section.Id] || section.Id}`);
+  item.append(label);
+  if (section.Id === "movies" || section.Id === "shows") {
+    const style = document.createElement("select");
+    style.setAttribute("aria-label", `Układ: ${SECTION_NAMES[section.Id]}`);
+    style.append(new Option("lista z opisem", "list"), ...[2, 3, 4].map((n) => new Option(`siatka plakatów, ${n} w rzędzie`, `grid-${n}`)));
+    style.value = section.Style === "grid" ? `grid-${section.Columns}` : "list";
+    item.append(style);
+  }
+  for (const [text, step, name] of [["↑", -1, "wyżej"], ["↓", 1, "niżej"]]) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = text;
+    button.setAttribute("aria-label", `Przesuń ${name}`);
+    button.addEventListener("click", () => {
+      const sibling = step < 0 ? item.previousElementSibling : item.nextElementSibling;
+      if (sibling) step < 0 ? sibling.before(item) : sibling.after(item);
+    });
+    item.append(button);
+  }
+  return item;
+}
+
+function fillLayout(layout) {
+  for (const input of $$("[data-layout]")) {
+    const value = layout[input.dataset.layout];
+    if (input.type === "checkbox") input.checked = Boolean(value);
+    else input.value = value ?? "";
+  }
+  $("#accent-default").checked = !layout.AccentColor;
+  $("#accent-color").disabled = !layout.AccentColor;
+  $("#accent-color").value = layout.AccentColor || THEME_ACCENTS[layout.Theme] || THEME_ACCENTS.dark;
+  $("#sections").replaceChildren(...layout.Sections.map(sectionRow));
+}
+
+function collectLayout() {
+  const layout = { ...config.Layout };
+  for (const input of $$("[data-layout]")) layout[input.dataset.layout] = input.type === "checkbox" ? input.checked : input.value.trim();
+  layout.AccentColor = $("#accent-default").checked ? "" : $("#accent-color").value;
+  layout.Sections = $$("#sections li").map((item) => {
+    const [style, columns] = ($("select", item)?.value || "list").split("-");
+    return { Id: item.dataset.id, Enabled: $("input", item).checked, Style: style, Columns: Number(columns || 3) };
+  });
+  return layout;
+}
+
+$("#accent-default").addEventListener("change", (event) => {
+  $("#accent-color").disabled = event.target.checked;
+  if (event.target.checked) $("#accent-color").value = THEME_ACCENTS[$("[data-layout=Theme]").value];
+});
+$("[data-layout=Theme]").addEventListener("change", (event) => {
+  if ($("#accent-default").checked) $("#accent-color").value = THEME_ACCENTS[event.target.value];
+});
+
+$("#layout-reset").addEventListener("click", () => {
+  fillLayout(config.DefaultLayout);
+  toast("Przywrócono domyślny wygląd. Kliknij „Zapisz”, żeby go zachować.");
+});
+
+$("#layout-preview").addEventListener("click", (event) => busy(event.target, async () => {
+  try {
+    await api("PUT", "/api/config", collectConfig());
+    await loadConfig();
+    openTab("preview");
+    await loadUsers();
+    $("#preview-run").click();
+  } catch (error) { toast(error.message, "err"); }
 }));
 
 // ---------- libraries and users ----------

@@ -18,6 +18,7 @@
       <button data-tab="connection">Połączenie</button>
       <button data-tab="email">E-mail</button>
       <button data-tab="content">Treść</button>
+      <button data-tab="layout">Wygląd</button>
       <button data-tab="recipients">Odbiorcy</button>
       <button data-tab="schedule">Harmonogram</button>
       <button data-tab="preview">Podgląd</button>
@@ -94,6 +95,40 @@
           <small>Nic nie zaznaczone = wszystkie biblioteki.</small>
         </fieldset>
         <div class="actions"><button class="primary" type="submit">Zapisz</button></div>
+      </form>
+    </section>
+
+    <section data-panel="layout" hidden>
+      <h2>Wygląd newslettera</h2>
+      <form class="card settings" data-form id="layout-form">
+        <fieldset><legend>Sekcje (kolejność od góry)</legend>
+          <ol id="sections" class="sections"></ol>
+          <small>Strzałkami zmieniasz kolejność, odznaczona sekcja się nie pojawi.</small>
+        </fieldset>
+        <fieldset><legend>Przy tytule pokazuj</legend>
+          <div class="checklist inline">
+            <label><input type="checkbox" data-layout="ShowYear"> rok</label>
+            <label><input type="checkbox" data-layout="ShowDetail"> gatunek, czas, nowe odcinki</label>
+            <label><input type="checkbox" data-layout="ShowRatings"> oceny IMDb i Rotten Tomatoes</label>
+            <label><input type="checkbox" data-layout="ShowOverview"> opis (tylko w układzie listy)</label>
+          </div>
+        </fieldset>
+        <fieldset><legend>Kolory i nagłówek</legend>
+          <div class="row">
+            <label class="narrow">Motyw<select data-layout="Theme"><option value="dark">ciemny</option><option value="light">jasny</option></select></label>
+            <label class="narrow">Kolor akcentu<input type="color" id="accent-color"></label>
+            <label class="check accent-default"><input type="checkbox" id="accent-default"> domyślny kolor motywu</label>
+          </div>
+          <div class="row">
+            <label>Mały nagłówek<input data-layout="Heading" maxlength="200"></label>
+            <label>Powitanie<input data-layout="Greeting" maxlength="200"></label>
+          </div>
+          <label>Tekst pod powitaniem<input data-layout="Intro" maxlength="200">
+            <small>W tekstach możesz użyć {imie}, {serwer} i {okres}. Puste pole = linia się nie pojawi.</small></label>
+          <label>Adres logo (opcjonalnie)<input data-layout="LogoUrl" type="url" placeholder="https://…/logo.png">
+            <small>PNG, JPG lub WebP. Pobierane przy każdej wysyłce i dołączane do e-maila.</small></label>
+        </fieldset>
+        <div class="actions"><button class="primary" type="submit">Zapisz</button><button type="button" id="layout-preview">Zapisz i pokaż podgląd</button><button type="button" id="layout-reset">Przywróć domyślny wygląd</button></div>
       </form>
     </section>
 

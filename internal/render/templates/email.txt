@@ -1,22 +1,16 @@
-{{.ServerName}} · newsletter
-Cześć, {{.RecipientName}}!
-Podsumowanie tygodnia: {{period .}}
-{{with .Personal}}
-TWÓJ TYDZIEŃ
+{{if .Heading}}{{.Heading}}
+{{end}}{{if .Greeting}}{{.Greeting}}
+{{end}}{{if .Intro}}{{.Intro}}
+{{end}}{{$l := .Layout}}{{range .Blocks}}
+{{if eq .ID "personal"}}{{with $.Personal}}TWÓJ TYDZIEŃ
 {{if gt .Plays 0}}- {{duration .Seconds}} oglądania
 - {{.Movies}} {{plural .Movies "film" "filmy" "filmów"}}, {{.Episodes}} {{plural .Episodes "odcinek" "odcinki" "odcinków"}}
 {{if .TopShow}}- Najczęściej oglądany serial: {{.TopShow}} ({{.TopShowEp}} {{plural .TopShowEp "odcinek" "odcinki" "odcinków"}})
 {{end}}{{else}}W tym tygodniu nie było seansów — poniżej nowości, od których warto zacząć.
-{{end}}{{end}}
-{{if .NewMovies}}NOWE FILMY
-{{range .NewMovies}}- {{.Name}}{{if .Year}} ({{.Year}}){{end}}{{if .IMDb}} · IMDb {{.IMDb}}{{end}}{{if .RTCritic}} · RT {{.RTCritic}}%{{end}}
-{{end}}
-{{end}}{{if .NewShows}}NOWE ODCINKI I SERIALE
-{{range .NewShows}}- {{.Name}}{{if .Detail}} · {{.Detail}}{{end}}
-{{end}}
-{{end}}{{if and (not .NewMovies) (not .NewShows)}}W tym tygodniu nie pojawiło się nic nowego.
-
-{{end}}{{if .Popular}}NAJPOPULARNIEJSZE NA SERWERZE
-{{range $i, $p := .Popular}}{{add $i 1}}. {{$p.Name}} · {{$p.Viewers}} {{plural $p.Viewers "osoba" "osoby" "osób"}}
-{{end}}
-{{end}}Otwórz {{.ServerName}}: {{.ButtonURL}}
+{{end}}{{end}}{{else if .Quiet}}W tym tygodniu nie pojawiło się nic nowego.
+{{else if eq .ID "popular"}}{{.Heading}}
+{{range $i, $p := $.Popular}}{{add $i 1}}. {{$p.Name}} · {{$p.Viewers}} {{plural $p.Viewers "osoba" "osoby" "osób"}}
+{{end}}{{else}}{{.Heading}}
+{{range .Items}}- {{.Name}}{{if and $l.ShowYear .Year}} ({{.Year}}){{end}}{{if and $l.ShowDetail .Detail}} · {{.Detail}}{{end}}{{if $l.ShowRatings}}{{if .IMDb}} · IMDb {{.IMDb}}{{end}}{{if .RTCritic}} · RT {{.RTCritic}}%{{end}}{{end}}
+{{end}}{{end}}{{end}}
+Otwórz {{.ServerName}}: {{.ButtonURL}}

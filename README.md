@@ -32,7 +32,7 @@ services:
 ```
 
 1. Uruchom kontener i otwórz `http://IP-UNRAIDA:8095`. Folder w appdata kontener tworzy i ustawia sam (właściciel `99:100`; inny ustawisz zmiennymi `PUID` i `PGID`).
-2. Przejdź przez zakładki: Połączenie → E-mail → Treść → Odbiorcy → Harmonogram, sprawdź Podgląd.
+2. Przejdź przez zakładki: Połączenie → E-mail → Treść → Wygląd → Odbiorcy → Harmonogram, sprawdź Podgląd.
 
 Polecenia w terminalu nadal działają (`docker exec silo-newsletter silo-newsletter verify | users | preview <ID> | send-test <ID>`).
 Ustawienia ze zmiennych środowiskowych (`SILO_URL`, `SILO_API_KEY`, `SMTP_*`, `FROM_EMAIL`, `TEST_EMAIL`, ...) mają pierwszeństwo przed panelem.
@@ -51,7 +51,7 @@ Ustawienia ze zmiennych środowiskowych (`SILO_URL`, `SILO_API_KEY`, `SMTP_*`, `
   najmniej dwa konta i nigdy nie podaje, kto je oglądał.
 - Nowości są filtrowane według bibliotek, do których dane konto ma dostęp.
 - Klucz API trafia tylko do nagłówka `Authorization`; grafiki (podpisane adresy
-  Silo) pobierane są bez klucza i wyłącznie z serwera Silo.
+  Silo) pobierane są bez klucza z serwera Silo; jedynym wyjątkiem jest logo, jeśli podasz jego adres w zakładce Wygląd.
 
 ## Licencja
 
