@@ -30,7 +30,6 @@ type harness struct {
 	t       *testing.T
 	server  *Server
 	handler http.Handler
-	cookie  *http.Cookie
 	fake    *silotest.Fake
 	path    string
 	mu      sync.Mutex
@@ -69,26 +68,11 @@ func (h *harness) call(method, path string, body any, panelHeader bool) (int, ma
 	if panelHeader {
 		request.Header.Set("X-Silo-Newsletter", "1")
 	}
-	if h.cookie != nil {
-		request.AddCookie(h.cookie)
-	}
 	recorder := httptest.NewRecorder()
 	h.handler.ServeHTTP(recorder, request)
-	for _, cookie := range recorder.Result().Cookies() {
-		if cookie.Name == sessionCookie && cookie.MaxAge >= 0 {
-			h.cookie = cookie
-		}
-	}
 	var decoded map[string]any
 	_ = json.Unmarshal(recorder.Body.Bytes(), &decoded)
 	return recorder.Code, decoded, recorder.Body.Bytes()
-}
-
-func (h *harness) login() {
-	h.t.Helper()
-	if code, body, _ := h.call("POST", "/api/setup", map[string]string{"Code": h.server.SetupCode(), "Password": "correct horse"}, true); code != 200 {
-		h.t.Fatalf("setup: %d %v", code, body)
-	}
 }
 
 func (h *harness) configure() {
@@ -105,36 +89,19 @@ func (h *harness) configure() {
 	}
 }
 
-func TestSetupNeedsLogCodeAndAuthGuardsAPI(t *testing.T) {
+func TestPanelNeedsNoLoginButChangesNeedPanelHeader(t *testing.T) {
 	h := newHarness(t)
-	if code, _, _ := h.call("GET", "/api/config", nil, true); code != http.StatusUnauthorized {
+	if code, _, _ := h.call("GET", "/api/config", nil, false); code != http.StatusOK {
 		t.Fatalf("config without login: %d", code)
 	}
-	if code, _, _ := h.call("POST", "/api/setup", map[string]string{"Code": "WRONG", "Password": "correct horse"}, true); code != http.StatusForbidden {
-		t.Fatalf("wrong setup code: %d", code)
-	}
-	if code, _, _ := h.call("POST", "/api/setup", map[string]string{"Code": h.server.SetupCode(), "Password": "correct horse"}, false); code != http.StatusForbidden {
-		t.Fatalf("setup without panel header: %d", code)
-	}
-	if _, _, raw := h.call("GET", "/api/status", nil, false); strings.Contains(string(raw), h.server.SetupCode()) {
-		t.Fatal("setup code served over HTTP")
-	}
-	h.login()
-	if code, _, _ := h.call("POST", "/api/setup", map[string]string{"Code": "x", "Password": "another one"}, true); code != http.StatusConflict {
-		t.Fatalf("second setup: %d", code)
-	}
-	h.cookie = nil
-	for i := 0; i < 5; i++ {
-		h.call("POST", "/api/login", map[string]string{"Password": "wrong password"}, true)
-	}
-	if code, _, _ := h.call("POST", "/api/login", map[string]string{"Password": "correct horse"}, true); code != http.StatusTooManyRequests {
-		t.Fatalf("login not rate limited: %d", code)
+	if code, _, _ := h.call("PUT", "/api/config", config.Defaults(), false); code != http.StatusForbidden {
+		t.Fatalf("change without panel header: %d", code)
 	}
 }
 
+
 func TestConfigSecretsAreNeverReturnedAndKeptWhenBlank(t *testing.T) {
 	h := newHarness(t)
-	h.login()
 	h.configure()
 	code, view, raw := h.call("GET", "/api/config", nil, true)
 	if code != 200 || view["HasSiloApiKey"] != true || view["HasSmtpPassword"] != true || view["Problem"] != "" {
@@ -161,7 +128,6 @@ func TestConfigSecretsAreNeverReturnedAndKeptWhenBlank(t *testing.T) {
 
 func TestEnablingScheduleDoesNotFireAPastSlot(t *testing.T) {
 	h := newHarness(t)
-	h.login()
 	h.configure()
 	_, _, raw := h.call("GET", "/api/config", nil, true)
 	var cfg config.Config
@@ -183,7 +149,6 @@ func TestEnablingScheduleDoesNotFireAPastSlot(t *testing.T) {
 
 func TestUsersPreviewAndSendAll(t *testing.T) {
 	h := newHarness(t)
-	h.login()
 	h.configure()
 	code, _, raw := h.call("GET", "/api/silo/users", nil, true)
 	// Silo's own addresses never reach the browser; only admin-set overrides do.

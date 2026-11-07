@@ -190,9 +190,6 @@ func serve(ctx context.Context, log *slog.Logger) error {
 	handler := server.Handler()
 	address := ":" + envOr("PORT", "8080")
 	log.Info("Silo Newsletter działa", "wersja", version, "panel", address, "konfiguracja", path)
-	if code := server.SetupCode(); code != "" {
-		log.Info("PIERWSZE URUCHOMIENIE: otwórz panel i wpisz kod konfiguracji", "kod", code)
-	}
 
 	runner := schedule.Runner{
 		LoadConfig: func() (config.Config, error) {

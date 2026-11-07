@@ -10,24 +10,7 @@
 <body>
 <div id="toast" role="status" aria-live="polite" hidden></div>
 
-<main id="auth" class="auth" hidden>
-  <section class="card auth-card">
-    <h1>Silo Newsletter</h1>
-    <form id="setup-form" hidden>
-      <p>Pierwsze uruchomienie. Ustaw hasło do panelu. Kod konfiguracji znajdziesz w logach kontenera
-      (Unraid: ikona kontenera → <strong>Logs</strong>).</p>
-      <label>Kod z logów<input id="setup-code" autocomplete="one-time-code" required></label>
-      <label>Nowe hasło (min. 8 znaków)<input id="setup-password" type="password" autocomplete="new-password" minlength="8" required></label>
-      <button class="primary" type="submit">Ustaw hasło</button>
-    </form>
-    <form id="login-form" hidden>
-      <label>Hasło<input id="login-password" type="password" autocomplete="current-password" required></label>
-      <button class="primary" type="submit">Zaloguj</button>
-    </form>
-  </section>
-</main>
-
-<div id="app" hidden>
+<div id="app">
   <header class="topbar">
     <div class="brand">Silo Newsletter</div>
     <nav id="tabs" role="tablist">
@@ -40,7 +23,6 @@
       <button data-tab="preview">Podgląd</button>
       <button data-tab="history">Historia</button>
     </nav>
-    <button id="logout" class="ghost">Wyloguj</button>
   </header>
 
   <main class="content">
@@ -158,14 +140,6 @@
     <section data-panel="history" hidden>
       <h2>Historia wysyłek</h2>
       <div class="card"><table class="history"><thead><tr><th>Start</th><th>Rodzaj</th><th>Wysłane</th><th>Błędy</th><th>Pominięte</th><th>Status</th></tr></thead><tbody id="history"></tbody></table></div>
-      <div class="card">
-        <h3>Zmiana hasła panelu</h3>
-        <form id="password-form" class="settings">
-          <div class="row"><label>Obecne hasło<input id="pw-current" type="password" autocomplete="current-password" required></label>
-          <label>Nowe hasło<input id="pw-new" type="password" autocomplete="new-password" minlength="8" required></label></div>
-          <div class="actions"><button type="submit">Zmień hasło</button></div>
-        </form>
-      </div>
     </section>
   </main>
   <footer class="footer" id="version"></footer>

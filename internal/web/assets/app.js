@@ -22,10 +22,6 @@ async function api(method, path, body) {
   }
   const response = await fetch(path, options);
   const data = await response.json().catch(() => ({}));
-  if (response.status === 401 && path !== "/api/status") {
-    showAuth(false);
-    throw new Error("Sesja wygasła, zaloguj się ponownie.");
-  }
   if (!response.ok) throw new Error(data.error || `Błąd HTTP ${response.status}`);
   return data;
 }
@@ -49,38 +45,6 @@ function formatDate(value) {
   if (!value) return "—";
   return new Date(value).toLocaleString("pl-PL", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
 }
-
-// ---------- auth ----------
-
-function showAuth(setupRequired) {
-  $("#app").hidden = true;
-  $("#auth").hidden = false;
-  $("#setup-form").hidden = !setupRequired;
-  $("#login-form").hidden = setupRequired;
-  (setupRequired ? $("#setup-code") : $("#login-password")).focus();
-}
-
-$("#setup-form").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  try {
-    await api("POST", "/api/setup", { Code: $("#setup-code").value, Password: $("#setup-password").value });
-    start();
-  } catch (error) { toast(error.message, "err"); }
-});
-
-$("#login-form").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  try {
-    await api("POST", "/api/login", { Password: $("#login-password").value });
-    $("#login-password").value = "";
-    start();
-  } catch (error) { toast(error.message, "err"); }
-});
-
-$("#logout").addEventListener("click", async () => {
-  await api("POST", "/api/logout", {}).catch(() => {});
-  showAuth(false);
-});
 
 // ---------- tabs ----------
 
@@ -332,25 +296,10 @@ async function loadHistory() {
   }));
 }
 
-$("#password-form").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  try {
-    await api("POST", "/api/password", { Current: $("#pw-current").value, Password: $("#pw-new").value });
-    event.target.reset();
-    toast("Hasło zmienione.");
-  } catch (error) { toast(error.message, "err"); }
-});
-
 // ---------- start ----------
 
 async function start() {
   const status = await api("GET", "/api/status");
-  if (!status.loggedIn) {
-    showAuth(status.setupRequired);
-    return;
-  }
-  $("#auth").hidden = true;
-  $("#app").hidden = false;
   await loadConfig();
   openTab(status.configured ? "dashboard" : "connection");
   if (!status.configured) toast("Zacznij od połączenia z Silo.");

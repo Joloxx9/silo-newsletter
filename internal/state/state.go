@@ -1,4 +1,4 @@
-// Package state persists the panel password, delivery history, and the
+// Package state persists the delivery history and the
 // schedule slots already sent, in one JSON file next to the config.
 package state
 
@@ -8,8 +8,6 @@ import (
 	"os"
 	"sync"
 	"time"
-
-	"golang.org/x/crypto/bcrypt"
 )
 
 const maxHistory = 100
@@ -28,7 +26,6 @@ type Run struct {
 }
 
 type data struct {
-	PasswordHash string `json:"passwordHash,omitempty"`
 	// LastSlot is the last scheduled send time claimed (RFC 3339). A slot is
 	// claimed before sending so a restart never sends it twice.
 	LastSlot string `json:"lastSlot,omitempty"`
@@ -47,7 +44,7 @@ func Open(path string) (*Store, error) {
 	switch {
 	case err == nil:
 		if err := json.Unmarshal(raw, &store.data); err != nil {
-			return nil, errors.New("state file is unreadable; move it aside to reset the panel password and history")
+			return nil, errors.New("state file is unreadable; move it aside to reset the history")
 		}
 	case errors.Is(err, os.ErrNotExist):
 	default:
@@ -73,36 +70,6 @@ func (s *Store) saveLocked() error {
 		return err
 	}
 	return os.Rename(temporary, s.path)
-}
-
-func (s *Store) HasPassword() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.data.PasswordHash != ""
-}
-
-func (s *Store) SetPassword(password string) error {
-	if len(password) < 8 {
-		return errors.New("hasło musi mieć co najmniej 8 znaków")
-	}
-	if len(password) > 72 {
-		return errors.New("hasło może mieć najwyżej 72 znaki")
-	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), 12)
-	if err != nil {
-		return err
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.data.PasswordHash = string(hash)
-	return s.saveLocked()
-}
-
-func (s *Store) CheckPassword(password string) bool {
-	s.mu.Lock()
-	hash := s.data.PasswordHash
-	s.mu.Unlock()
-	return hash != "" && bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
 }
 
 // ClaimSlot records slot as sent if it is newer than the last claimed slot.

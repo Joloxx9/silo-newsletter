@@ -3,10 +3,7 @@ package web
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/subtle"
 	"embed"
-	"encoding/base32"
 	"encoding/json"
 	"errors"
 	"io/fs"
@@ -26,12 +23,9 @@ import (
 //go:embed assets/*
 var assets embed.FS
 
-const (
-	sessionCookie   = "silo_newsletter_session"
-	sessionLifetime = 12 * time.Hour
-	maxBody         = 1 << 20
-)
+const maxBody = 1 << 20
 
+// Server has no login: the panel is meant for the home network only.
 type Server struct {
 	ConfigPath string
 	Store      *state.Store
@@ -41,46 +35,26 @@ type Server struct {
 	// Background is the context for deliveries started from the panel.
 	Background context.Context
 
-	setupCode string
-	configMu  sync.Mutex
+	configMu sync.Mutex
 
-	sessionsMu sync.Mutex
-	sessions   map[string]time.Time
-
-	loginMu       sync.Mutex
-	failedLogins  int
-	lockedUntil   time.Time
+	sendMu        sync.Mutex
 	sendAllActive bool
 }
 
-// SetupCode returns the one-time code needed to set the first password. It
-// is printed to the container log only, never served over HTTP.
-func (s *Server) SetupCode() string { return s.setupCode }
-
 func (s *Server) Handler() http.Handler {
-	if s.sessions == nil {
-		s.sessions = map[string]time.Time{}
-	}
-	if !s.Store.HasPassword() && s.setupCode == "" {
-		s.setupCode = randomToken(10)
-	}
 	static, _ := fs.Sub(assets, "assets")
 	mux := http.NewServeMux()
 	mux.Handle("GET /", http.FileServerFS(static))
 	mux.HandleFunc("GET /api/status", s.handleStatus)
-	mux.HandleFunc("POST /api/setup", s.handleSetup)
-	mux.HandleFunc("POST /api/login", s.handleLogin)
-	mux.HandleFunc("POST /api/logout", s.handleLogout)
-	mux.HandleFunc("GET /api/config", s.auth(s.handleGetConfig))
-	mux.HandleFunc("PUT /api/config", s.auth(s.handlePutConfig))
-	mux.HandleFunc("POST /api/test/silo", s.auth(s.handleTestSilo))
-	mux.HandleFunc("GET /api/silo/users", s.auth(s.handleUsers))
-	mux.HandleFunc("GET /api/silo/libraries", s.auth(s.handleLibraries))
-	mux.HandleFunc("POST /api/preview", s.auth(s.handlePreview))
-	mux.HandleFunc("POST /api/send-test", s.auth(s.handleSendTest))
-	mux.HandleFunc("POST /api/send-all", s.auth(s.handleSendAll))
-	mux.HandleFunc("GET /api/history", s.auth(s.handleHistory))
-	mux.HandleFunc("POST /api/password", s.auth(s.handlePassword))
+	mux.HandleFunc("GET /api/config", s.handleGetConfig)
+	mux.HandleFunc("PUT /api/config", s.handlePutConfig)
+	mux.HandleFunc("POST /api/test/silo", s.handleTestSilo)
+	mux.HandleFunc("GET /api/silo/users", s.handleUsers)
+	mux.HandleFunc("GET /api/silo/libraries", s.handleLibraries)
+	mux.HandleFunc("POST /api/preview", s.handlePreview)
+	mux.HandleFunc("POST /api/send-test", s.handleSendTest)
+	mux.HandleFunc("POST /api/send-all", s.handleSendAll)
+	mux.HandleFunc("GET /api/history", s.handleHistory)
 	return securityHeaders(mux)
 }
 
@@ -103,169 +77,22 @@ func securityHeaders(next http.Handler) http.Handler {
 	})
 }
 
-// ---------- sessions and login ----------
-
-func randomToken(bytes int) string {
-	buffer := make([]byte, bytes)
-	_, _ = rand.Read(buffer)
-	return strings.TrimRight(base32.StdEncoding.EncodeToString(buffer), "=")
-}
-
-func (s *Server) newSession(w http.ResponseWriter, r *http.Request) {
-	token := randomToken(32)
-	s.sessionsMu.Lock()
-	now := time.Now()
-	for existing, expires := range s.sessions {
-		if now.After(expires) {
-			delete(s.sessions, existing)
-		}
+func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
+	cfg := s.effectiveConfig()
+	response := map[string]any{
+		"version":         s.Version,
+		"configured":      cfg.Validate() == nil,
+		"mailConfigured":  cfg.ValidateMail() == nil,
+		"scheduleEnabled": cfg.ScheduleEnabled,
+		"sending":         s.isSending(),
 	}
-	s.sessions[token] = now.Add(sessionLifetime)
-	s.sessionsMu.Unlock()
-	http.SetCookie(w, &http.Cookie{Name: sessionCookie, Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: r.TLS != nil, MaxAge: int(sessionLifetime.Seconds())})
-}
-
-func (s *Server) loggedIn(r *http.Request) bool {
-	cookie, err := r.Cookie(sessionCookie)
-	if err != nil {
-		return false
+	if next, ok := schedule.Next(time.Now(), cfg); ok && cfg.ScheduleEnabled {
+		response["nextSend"] = next.Format(time.RFC3339)
 	}
-	s.sessionsMu.Lock()
-	defer s.sessionsMu.Unlock()
-	expires, ok := s.sessions[cookie.Value]
-	if !ok || time.Now().After(expires) {
-		delete(s.sessions, cookie.Value)
-		return false
-	}
-	return true
-}
-
-func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if !s.loggedIn(r) {
-			writeError(w, http.StatusUnauthorized, "zaloguj się")
-			return
-		}
-		next(w, r)
-	}
-}
-
-func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
-	response := map[string]any{"setupRequired": !s.Store.HasPassword(), "loggedIn": s.loggedIn(r), "version": s.Version}
-	if s.loggedIn(r) {
-		cfg := s.effectiveConfig()
-		response["configured"] = cfg.Validate() == nil
-		response["mailConfigured"] = cfg.ValidateMail() == nil
-		response["scheduleEnabled"] = cfg.ScheduleEnabled
-		if next, ok := schedule.Next(time.Now(), cfg); ok && cfg.ScheduleEnabled {
-			response["nextSend"] = next.Format(time.RFC3339)
-		}
-		response["sending"] = s.isSending()
-		if runs := s.Store.Runs(); len(runs) > 0 {
-			response["lastRun"] = runs[0]
-		}
+	if runs := s.Store.Runs(); len(runs) > 0 {
+		response["lastRun"] = runs[0]
 	}
 	writeJSON(w, http.StatusOK, response)
-}
-
-func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
-	var request struct{ Code, Password string }
-	if !decode(w, r, &request) {
-		return
-	}
-	if s.Store.HasPassword() {
-		writeError(w, http.StatusConflict, "hasło jest już ustawione")
-		return
-	}
-	if !s.allowLoginAttempt() {
-		writeError(w, http.StatusTooManyRequests, "za dużo prób, odczekaj chwilę")
-		return
-	}
-	code := strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(request.Code), " ", ""))
-	if subtle.ConstantTimeCompare([]byte(code), []byte(s.setupCode)) != 1 {
-		s.loginFailed()
-		writeError(w, http.StatusForbidden, "nieprawidłowy kod z logów kontenera")
-		return
-	}
-	if err := s.Store.SetPassword(request.Password); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	s.setupCode = ""
-	s.loginSucceeded()
-	s.newSession(w, r)
-	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
-}
-
-func (s *Server) allowLoginAttempt() bool {
-	s.loginMu.Lock()
-	defer s.loginMu.Unlock()
-	return time.Now().After(s.lockedUntil)
-}
-
-func (s *Server) loginFailed() {
-	s.loginMu.Lock()
-	defer s.loginMu.Unlock()
-	s.failedLogins++
-	if s.failedLogins >= 5 {
-		s.lockedUntil = time.Now().Add(time.Minute)
-		s.failedLogins = 0
-	}
-}
-
-func (s *Server) loginSucceeded() {
-	s.loginMu.Lock()
-	defer s.loginMu.Unlock()
-	s.failedLogins = 0
-}
-
-func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
-	var request struct{ Password string }
-	if !decode(w, r, &request) {
-		return
-	}
-	if !s.allowLoginAttempt() {
-		writeError(w, http.StatusTooManyRequests, "za dużo prób, odczekaj minutę")
-		return
-	}
-	if !s.Store.CheckPassword(request.Password) {
-		s.loginFailed()
-		writeError(w, http.StatusForbidden, "nieprawidłowe hasło")
-		return
-	}
-	s.loginSucceeded()
-	s.newSession(w, r)
-	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
-}
-
-func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
-	if cookie, err := r.Cookie(sessionCookie); err == nil {
-		s.sessionsMu.Lock()
-		delete(s.sessions, cookie.Value)
-		s.sessionsMu.Unlock()
-	}
-	http.SetCookie(w, &http.Cookie{Name: sessionCookie, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteStrictMode})
-	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
-}
-
-func (s *Server) handlePassword(w http.ResponseWriter, r *http.Request) {
-	var request struct{ Current, Password string }
-	if !decode(w, r, &request) {
-		return
-	}
-	if !s.Store.CheckPassword(request.Current) {
-		writeError(w, http.StatusForbidden, "obecne hasło jest nieprawidłowe")
-		return
-	}
-	if err := s.Store.SetPassword(request.Password); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	s.sessionsMu.Lock()
-	s.sessions = map[string]time.Time{}
-	s.sessionsMu.Unlock()
-	s.newSession(w, r)
-	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
 // ---------- configuration ----------
@@ -498,8 +325,8 @@ func (s *Server) handleSendTest(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) isSending() bool {
-	s.loginMu.Lock()
-	defer s.loginMu.Unlock()
+	s.sendMu.Lock()
+	defer s.sendMu.Unlock()
 	return s.sendAllActive
 }
 
@@ -521,23 +348,23 @@ func (s *Server) handleSendAll(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	s.loginMu.Lock()
+	s.sendMu.Lock()
 	if s.sendAllActive {
-		s.loginMu.Unlock()
+		s.sendMu.Unlock()
 		writeError(w, http.StatusConflict, delivery.ErrBusy.Error())
 		return
 	}
 	s.sendAllActive = true
-	s.loginMu.Unlock()
+	s.sendMu.Unlock()
 	background := s.Background
 	if background == nil {
 		background = context.Background()
 	}
 	go func() {
 		defer func() {
-			s.loginMu.Lock()
+			s.sendMu.Lock()
 			s.sendAllActive = false
-			s.loginMu.Unlock()
+			s.sendMu.Unlock()
 		}()
 		if _, err := s.Delivery.SendAll(background, cfg, "manual"); err != nil {
 			s.Log.Error("manual delivery failed", "error", err)

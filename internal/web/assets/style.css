@@ -46,9 +46,6 @@ td input { margin: 0; }
 .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; background: #262c3a; }
 .badge.ok { background: rgba(63,185,80,.18); color: var(--ok); } .badge.err { background: rgba(229,72,77,.18); color: #ff8589; } .badge.warn { background: rgba(210,153,34,.18); color: var(--warn); }
 iframe { width: 100%; height: 1400px; border: 1px solid var(--line); border-radius: 14px; background: #0d0f14; }
-.auth { min-height: 100vh; display: grid; place-items: center; padding: 20px; }
-.auth-card { width: min(420px, 100%); }
-.auth-card label { display: block; margin-bottom: 14px; }
 #toast { position: fixed; right: 20px; bottom: 20px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; max-width: 420px; z-index: 5; box-shadow: 0 8px 24px rgba(0,0,0,.4); }
 #toast.err { border-color: var(--danger); } #toast.ok { border-color: var(--ok); }
 .footer { text-align: center; color: var(--muted); font-size: 12px; padding: 16px; }
