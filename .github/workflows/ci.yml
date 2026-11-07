@@ -53,12 +53,13 @@ jobs:
           docker run --rm silo-newsletter:smoke help | grep -q "Silo Newsletter"
           if docker run --rm -e SILO_URL=http://127.0.0.1:9 -e SILO_API_KEY=x silo-newsletter:smoke verify; then exit 1; fi
           # A root-owned data folder is handed to 99:100 and the app keeps running.
-          mkdir data && sudo chown root:root data && sudo chmod 700 data
-          docker run -d --name smoke -v "$PWD/data:/data" silo-newsletter:smoke
+          data="$RUNNER_TEMP/data"
+          mkdir "$data" && sudo chown root:root "$data" && sudo chmod 700 "$data"
+          docker run -d --name smoke -v "$data:/data" silo-newsletter:smoke
           sleep 3
           docker logs smoke
           test "$(docker inspect -f {{.State.Running}} smoke)" = true
-          test "$(sudo stat -c %u:%g data)" = 99:100
+          test "$(sudo stat -c %u:%g "$data")" = 99:100
           test "$(ps -o uid= -p "$(docker inspect -f {{.State.Pid}} smoke)" | tr -d " ")" = 99
       - uses: docker/login-action@v3
         if: github.event_name != 'pull_request'
