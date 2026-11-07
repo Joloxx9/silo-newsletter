@@ -99,7 +99,6 @@ func TestPanelNeedsNoLoginButChangesNeedPanelHeader(t *testing.T) {
 	}
 }
 
-
 func TestConfigSecretsAreNeverReturnedAndKeptWhenBlank(t *testing.T) {
 	h := newHarness(t)
 	h.configure()
