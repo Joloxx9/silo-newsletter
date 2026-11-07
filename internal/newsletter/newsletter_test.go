@@ -235,7 +235,7 @@ func TestHalfWidthSectionsShareARow(t *testing.T) {
 	if !strings.Contains(row[:strings.Index(row, "NOWE FILMY")], "NAJPOPULARNIEJSZE") {
 		t.Error("popular is not next to personal")
 	}
-	if !strings.Contains(html, `width="284"`) {
+	if !strings.Contains(html, `width="272"`) {
 		t.Error("full-width grid posters are not full size")
 	}
 }

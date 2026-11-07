@@ -12,6 +12,7 @@ import (
 	textTemplate "text/template"
 
 	"github.com/joloxx9/silo-newsletter/internal/config"
+	"github.com/joloxx9/silo-newsletter/internal/images"
 	"github.com/joloxx9/silo-newsletter/internal/newsletter"
 )
 
@@ -76,12 +77,22 @@ type blockView struct {
 	V view
 }
 
-// CellWidth is the grid poster width in pixels for the 640px email.
+// Gap is the space between grid cards in pixels.
+func (b blockView) Gap() int { return 8 }
+
+// CellWidth is the grid poster width in pixels for the 640px email: the
+// row minus the gaps, split into columns, minus the card padding.
 func (b blockView) CellWidth() int {
+	row := 600
 	if b.Half {
-		return 290/b.Columns - 16
+		row = 290
 	}
-	return 600/b.Columns - 16
+	return (row-b.Gap()*(b.Columns+1))/b.Columns - 16
+}
+
+// CellHeight keeps every grid poster at the same 2:3 shape.
+func (b blockView) CellHeight() int {
+	return b.CellWidth() * images.PosterHeight / images.PosterWidth
 }
 
 // CellPercent is the grid column width as an HTML attribute value.

@@ -278,7 +278,7 @@ func (b *Builder) describe(ctx context.Context, contentID, fallbackTitle string,
 	if poster != "" {
 		if data, err := b.client.Image(ctx, poster); err != nil {
 			b.log.Warn("poster download failed", "item", contentID, "error", err)
-		} else if jpeg, err := images.ToJPEG(data, 300); err != nil {
+		} else if jpeg, err := images.ToPoster(data); err != nil {
 			b.log.Warn("poster conversion failed", "item", contentID, "error", err)
 		} else {
 			title.Poster = &Image{CID: "poster-" + sanitizeCID(contentID) + "@silo-newsletter", Type: "image/jpeg", Data: jpeg}

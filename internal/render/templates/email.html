@@ -66,27 +66,24 @@
 {{end}}
 
 {{define "grid"}}{{$v := .V}}{{$l := .V.Layout}}{{$b := .}}
+<tr><td style="padding:0;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="{{$b.Gap}}" style="table-layout:fixed;border-collapse:separate;">
 {{range .Rows}}
-<tr><td style="padding:4px 0;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="table-layout:fixed;">
 <tr>
   {{range .}}
-  <td width="{{$b.CellPercent}}" valign="top" style="padding:4px;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{{$v.C.Card}};border-radius:12px;">
-    <tr><td style="padding:8px;">
-      {{if .Poster}}<img src="{{call $v.ImageSrc .Poster}}" width="{{$b.CellWidth}}" alt="" style="display:block;width:100%;max-width:{{$b.CellWidth}}px;height:auto;border-radius:8px;">{{end}}
-      <div style="font-size:14px;font-weight:700;color:{{$v.C.Strong}};margin-top:8px;">{{.Name}}{{if and $l.ShowYear .Year}} <span style="color:{{$v.C.Faint}};font-weight:400;">({{.Year}})</span>{{end}}</div>
-      {{if and $l.ShowDetail .Detail}}<div style="font-size:12px;color:{{$v.C.Accent}};margin-top:3px;">{{.Detail}}</div>{{end}}
-      {{if $l.ShowRatings}}{{if or .IMDb .RTCritic .RTAudience}}<div style="font-size:12px;color:{{$v.C.Text}};margin-top:5px;">{{template "ratings" .}}</div>{{end}}{{end}}
-    </td></tr>
-    </table>
+  <td width="{{$b.CellPercent}}" valign="top" style="background:{{$v.C.Card}};border-radius:12px;padding:8px;">
+    {{if .Poster}}<img src="{{call $v.ImageSrc .Poster}}" width="{{$b.CellWidth}}" height="{{$b.CellHeight}}" alt="" style="display:block;width:100%;max-width:{{$b.CellWidth}}px;height:auto;border-radius:8px;">
+    {{else}}<div style="height:{{$b.CellHeight}}px;border-radius:8px;background:{{$v.C.Background}};"></div>{{end}}
+    <div style="font-size:14px;font-weight:700;color:{{$v.C.Strong}};margin-top:8px;">{{.Name}}{{if and $l.ShowYear .Year}} <span style="color:{{$v.C.Faint}};font-weight:400;">({{.Year}})</span>{{end}}</div>
+    {{if and $l.ShowDetail .Detail}}<div style="font-size:12px;color:{{$v.C.Accent}};margin-top:3px;">{{.Detail}}</div>{{end}}
+    {{if $l.ShowRatings}}{{if or .IMDb .RTCritic .RTAudience}}<div style="font-size:12px;color:{{$v.C.Text}};margin-top:5px;">{{template "ratings" .}}</div>{{end}}{{end}}
   </td>
   {{end}}
-  {{range $b.Fill .}}<td width="{{$b.CellPercent}}" style="padding:4px;"></td>{{end}}
+  {{range $b.Fill .}}<td width="{{$b.CellPercent}}"></td>{{end}}
 </tr>
+{{end}}
 </table>
 </td></tr>
-{{end}}
 {{end}}
 
 {{define "popular"}}
